@@ -12,3 +12,5 @@
 - [x] Browser-test real workspace creation, project creation, task movement, task-sheet collaboration, and empty/error states without adding seeded data.
 - [x] Browser-test an invalid live-form submission and confirm clear user-facing validation feedback.
 - [x] Save the final post-migration completion checkpoint after all validation passes.
+- [x] Fix the accessible DialogTitle warning triggered by the TaskNest interface.
+- [x] Verify the affected dialog renders without console accessibility warnings and save the accessibility-fix checkpoint.
