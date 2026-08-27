@@ -72,28 +72,16 @@
   /* Supporting TaskNest artwork is intentionally placed on orientation surfaces,
      not repeated on task cards where it would compete with work content. */
   #root main > div > section > div.relative {
+    background-color: #2b789f !important;
     isolation: isolate;
     overflow: hidden;
-  }
-
-  #root main > div > section > div.relative::before {
-    background: url('/manus-storage/tasknest-collaboration-orbit_543d97e9.png') right bottom / 278px auto no-repeat;
-    content: "";
-    height: 102px;
-    opacity: 0.92;
-    pointer-events: none;
-    position: absolute;
-    right: 142px;
-    top: 0;
-    width: 205px;
-    z-index: 0;
   }
 
   #root main > div > section > div.relative::after {
     background: url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
     content: "";
     inset: 0 0 0 auto;
-    opacity: 0.88;
+    opacity: 0.46;
     pointer-events: none;
     position: absolute;
     width: min(52%, 560px);
@@ -103,6 +91,14 @@
   #root main > div > section > div.relative > * {
     position: relative;
     z-index: 1;
+  }
+
+  #root main > div > section > div.relative > div > div:first-child > p {
+    color: #ffffff !important;
+  }
+
+  #root main > div > section > div.relative > div > div:last-child > span {
+    color: #e8f7ff !important;
   }
 
   #root aside > div.mt-auto {

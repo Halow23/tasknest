@@ -31,3 +31,5 @@
 - [x] Remove the duplicate visual author credit and retain one sign-in brand lockup with SYNAPSE capitalized.
 - [x] Remove the duplicate sign-in author-credit regression and retain only one visible author line beside the logo.
 - [x] Capitalize SYNAPSE in the remaining single sign-in author-credit line.
+- [x] Set the Private Workspace banner and workspace name text to white and remove the collaboration orbit from that banner.
+- [x] Verify the banner uses only the TaskNest wave field and save a banner-correction checkpoint.
