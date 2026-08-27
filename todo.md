@@ -42,3 +42,6 @@
 - [x] Convert the Kanban board to intentional swipeable, snap-aligned mobile lanes while preserving desktop behavior.
 - [x] Add responsive-layout regression coverage and validate the test suite, type check, and production build.
 - [x] Save the completed mobile-support checkpoint.
+- [x] Surface a clear, accessible teammate-invitation entry point in the workspace interface.
+- [x] Validate the invitation control with automated tests, type checking, and a production build.
+- [x] Save the invitation-discoverability checkpoint.
