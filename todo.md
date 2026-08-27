@@ -23,3 +23,5 @@
 - [x] Verify the supporting asset URLs render in the live workspace and save an asset-visibility checkpoint.
 - [x] Reattach the supplied TaskNest wave, calendar, and collaboration image assets using their current storage filenames.
 - [x] Verify the reattached storage URLs render in the live workspace and save an asset-reattachment checkpoint.
+- [x] Remove the TaskNest wave field from the main header and place it in the sign-in and private-workspace banner surfaces.
+- [x] Verify the corrected wave-field positions and save a visual-hierarchy checkpoint.
