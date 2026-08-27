@@ -78,7 +78,7 @@
   }
 
   #root main > div > section > header::after {
-    background: url('/manus-storage/tasknest-wave-field_5713e36f.png') right 39% center / cover no-repeat;
+    background: url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right 39% center / cover no-repeat;
     content: "";
     height: 100%;
     opacity: 0.9;
@@ -101,7 +101,7 @@
   }
 
   #root main > div > section > div.relative::before {
-    background: url('/manus-storage/tasknest-collaboration-orbit_c678479e.png') right bottom / 278px auto no-repeat;
+    background: url('/manus-storage/tasknest-collaboration-orbit_543d97e9.png') right bottom / 278px auto no-repeat;
     content: "";
     height: 102px;
     opacity: 0.92;
@@ -114,7 +114,7 @@
   }
 
   #root main > div > section > div.relative::after {
-    background: url('/manus-storage/tasknest-calendar-sculpture_8f83611e.png') right center / 190px auto no-repeat;
+    background: url('/manus-storage/tasknest-calendar-sculpture_0ca27879.png') right center / 190px auto no-repeat;
     content: "";
     inset: 0 0 0 auto;
     opacity: 0.9;
@@ -136,7 +136,7 @@
   }
 
   #root aside > div.mt-auto::after {
-    background: url('/manus-storage/tasknest-collaboration-orbit_c678479e.png') right -1.3rem bottom -3.1rem / 250px auto no-repeat;
+    background: url('/manus-storage/tasknest-collaboration-orbit_543d97e9.png') right -1.3rem bottom -3.1rem / 250px auto no-repeat;
     content: "";
     inset: 0;
     opacity: 0.85;

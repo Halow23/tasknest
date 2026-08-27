@@ -21,3 +21,5 @@
 - [x] Add lifecycle, comment, and keyboard-navigation tests; verify the live experience and save a completion checkpoint.
 - [x] Restore the generated TaskNest supporting visual assets beyond the logo in purposeful dashboard surfaces.
 - [x] Verify the supporting asset URLs render in the live workspace and save an asset-visibility checkpoint.
+- [x] Reattach the supplied TaskNest wave, calendar, and collaboration image assets using their current storage filenames.
+- [x] Verify the reattached storage URLs render in the live workspace and save an asset-reattachment checkpoint.
