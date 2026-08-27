@@ -25,3 +25,7 @@
 - [x] Verify the reattached storage URLs render in the live workspace and save an asset-reattachment checkpoint.
 - [x] Remove the TaskNest wave field from the main header and place it in the sign-in and private-workspace banner surfaces.
 - [x] Verify the corrected wave-field positions and save a visual-hierarchy checkpoint.
+- [x] Add “by Rafael Udtohan of Team Synapse” as semantic content beside the TaskNest logo on the sign-in page.
+- [x] Verify the sign-in branding credit is readable in the signed-out sign-in shell and save a branding checkpoint.
+- [x] Capitalize “SYNAPSE” in the TaskNest sign-in author credit.
+- [x] Remove the duplicate visual author credit and retain one sign-in brand lockup with SYNAPSE capitalized.

@@ -148,6 +148,17 @@
     position: relative;
     z-index: 1;
   }
+
+  /* The markup keeps the credit semantic; this presents SYNAPSE in the requested all-caps style once. */
+  #root > main.p-5 > div > section > div > div > p.mt-0\.5 {
+    font-size: 0;
+  }
+
+  #root > main.p-5 > div > section > div > div > p.mt-0\.5::after {
+    content: "by Rafael Udtohan of Team SYNAPSE";
+    font-size: 10px;
+  }
+
 }
 
 @media (prefers-reduced-motion: no-preference) {
