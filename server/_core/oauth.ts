@@ -1,6 +1,7 @@
 import { COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE, decodeOAuthState } from "@shared/const";
 import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
+import { isAllowedTaskNestEmail } from "../accessPolicy";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
@@ -37,6 +38,15 @@ export function registerOAuthRoutes(app: Express) {
 
       if (!userInfo.openId) {
         res.status(400).json({ error: "openId missing from user info" });
+        return;
+      }
+
+      // Do not provision a TaskNest user or issue a session until the identity
+      // provider confirms an approved Foundation University email address.
+      if (!isAllowedTaskNestEmail(userInfo.email)) {
+        const cookieOptions = getSessionCookieOptions(req);
+        res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+        res.redirect(302, "/?access=denied");
         return;
       }
 

@@ -1,20 +1,33 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { User } from "../../drizzle/schema";
-import { sdk } from "./sdk";
+import { COOKIE_NAME } from "@shared/const";
+import { isAllowedTaskNestEmail } from "../accessPolicy";
+import { getSessionCookieOptions } from "./cookies";
+import { sdk, type AuthenticatedUser } from "./sdk";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
-  user: User | null;
+  user: AuthenticatedUser | null;
+  accessDenied: boolean;
 };
 
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
-  let user: User | null = null;
+  let user: AuthenticatedUser | null = null;
+  let accessDenied = false;
 
   try {
     user = await sdk.authenticateRequest(opts.req);
+
+    // Previously issued sessions must obey the same rule as new OAuth logins.
+    // Scheduled service identities do not represent end-user email logins.
+    if (user && !user.isCron && !isAllowedTaskNestEmail(user.email)) {
+      const cookieOptions = getSessionCookieOptions(opts.req);
+      opts.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      user = null;
+      accessDenied = true;
+    }
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;
@@ -24,5 +37,6 @@ export async function createContext(
     req: opts.req,
     res: opts.res,
     user,
+    accessDenied,
   };
 }

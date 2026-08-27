@@ -8,6 +8,7 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
+    access: publicProcedure.query((opts) => ({ denied: opts.ctx.accessDenied })),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -18,4 +19,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-
