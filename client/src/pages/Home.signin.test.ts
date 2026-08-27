@@ -7,6 +7,6 @@ describe("TaskNest sign-in brand lockup", () => {
     expect(source).toContain('className="flex items-center gap-3"');
     expect(source).toContain('alt="TaskNest"');
     expect(source).toContain("TaskNest</p><p");
-    expect(source).toContain("by Rafael Udtohan of Team Synapse");
+    expect(source).toContain("by Rafael Udtohan of Team SYNAPSE");
   });
 });

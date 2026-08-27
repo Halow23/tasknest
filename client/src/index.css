@@ -156,5 +156,201 @@
 @keyframes task-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 1023px) {
-  .board-scroll { -webkit-overflow-scrolling: touch; }
+  /* The desktop rail becomes an on-page mobile workspace navigator, so no project or view controls disappear on touch devices. */
+  #root main > div {
+    display: block;
+    min-height: 100vh;
+    overflow-x: clip;
+  }
+
+  #root main > div > aside.hidden.lg\:flex {
+    background: #ffffff;
+    border-bottom: 1px solid #dfe9ee;
+    border-right: 0;
+    box-sizing: border-box;
+    display: flex !important;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.7rem 1rem 0.75rem;
+    position: relative;
+    width: 100%;
+  }
+
+  #root main > div > aside > div:first-child,
+  #root main > div > aside > div.mt-auto {
+    display: none;
+  }
+
+  #root main > div > aside > nav {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0;
+    padding-right: 2.6rem;
+  }
+
+  #root main > div > aside > nav > button {
+    flex: 1 1 0;
+    gap: 0.35rem;
+    justify-content: center;
+    min-width: 0;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  #root main > div > aside > section {
+    margin-top: 0.7rem;
+  }
+
+  #root main > div > aside > section > div:first-child {
+    padding-left: 0.1rem;
+    padding-right: 0.1rem;
+  }
+
+  #root main > div > aside > section > div.mt-2 {
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    scrollbar-width: thin;
+  }
+
+  #root main > div > aside > section > div.mt-2 > button {
+    flex: 0 0 auto;
+    min-width: max-content;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  #root main > div > aside > button {
+    align-items: center;
+    display: flex;
+    font-size: 0;
+    height: 2rem;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.68rem;
+    width: 2rem;
+  }
+
+  #root main > div > aside > button svg {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  #root main > div > section {
+    min-height: 0;
+  }
+
+  #root main > div > section > header {
+    gap: 0.75rem;
+    min-height: 4rem;
+    padding: 0.65rem 1rem;
+  }
+
+  #root main > div > section > header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  #root main > div > section > header > div:first-child > p,
+  #root main > div > section > header > div:first-child > h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #root main > div > section > header > div:first-child > h1 {
+    font-size: 1rem;
+  }
+
+  #root main > div > section > header > div:last-child {
+    flex: 0 0 auto;
+  }
+
+  #root main > div > section > div.relative,
+  #root main > div > section > div:nth-of-type(2) {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  #root main > div > section > div:nth-of-type(2) {
+    align-items: flex-start;
+  }
+
+  #root main > div > section > div:nth-of-type(2) [role="tablist"] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0.75rem 1rem 0;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    padding: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto > div.grid {
+    display: flex;
+    gap: 0.75rem;
+    min-width: 100%;
+    width: max-content;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto > div.grid > section {
+    flex: 0 0 min(82vw, 22rem);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-auto {
+    padding: 1.25rem;
+  }
+
+  #root > main.p-5 {
+    padding: 0.75rem;
+  }
+
+  #root > main.p-5 > div > section {
+    padding: 1.5rem !important;
+  }
+
+  #root > main.p-5 form > div {
+    flex-direction: column;
+  }
+
+  #root > main.p-5 form > div > button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 639px) {
+  #root main > div > aside > nav > button {
+    font-size: 10px;
+  }
+
+  #root main > div > section > header > div:last-child > button {
+    min-height: 2.25rem;
+  }
+
+  #root [data-slot="sheet-content"] .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  #root [data-slot="sheet-content"] .space-y-6 {
+    row-gap: 1.25rem;
+  }
+
+  #root [data-slot="sheet-content"] .flex.items-center.justify-between.border-t > span {
+    max-width: 10.5rem;
+  }
 }

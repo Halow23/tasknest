@@ -37,3 +37,8 @@
 - [x] Type-check the white-background correction and save a checkpoint.
 - [x] Restore the Private Workspace TaskNest wave field in its original unmasked, unfiltered form.
 - [x] Type-check the unmasked wave-field refinement and save a checkpoint.
+- [x] Keep workspace navigation available below the desktop breakpoint through a compact, touch-friendly mobile navigation rail.
+- [x] Make workspace controls, banner, tabs, metrics, calendar, analytics, task sheet, and dialogs adapt to narrow screens.
+- [x] Convert the Kanban board to intentional swipeable, snap-aligned mobile lanes while preserving desktop behavior.
+- [x] Add responsive-layout regression coverage and validate the test suite, type check, and production build.
+- [x] Save the completed mobile-support checkpoint.
