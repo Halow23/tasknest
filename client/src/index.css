@@ -72,7 +72,7 @@
   /* Supporting TaskNest artwork is intentionally placed on orientation surfaces,
      not repeated on task cards where it would compete with work content. */
   #root main > div > section > div.relative {
-    background-color: #2b789f !important;
+    background-color: #ffffff !important;
     isolation: isolate;
     overflow: hidden;
   }
@@ -80,11 +80,12 @@
   #root main > div > section > div.relative::after {
     background: url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
     content: "";
+    filter: grayscale(1) brightness(1.65) contrast(0.7);
     inset: 0 0 0 auto;
-    opacity: 0.46;
+    opacity: 0.16;
     pointer-events: none;
     position: absolute;
-    width: min(52%, 560px);
+    width: min(46%, 500px);
     z-index: 0;
   }
 
@@ -94,11 +95,11 @@
   }
 
   #root main > div > section > div.relative > div > div:first-child > p {
-    color: #ffffff !important;
+    color: #245779 !important;
   }
 
   #root main > div > section > div.relative > div > div:last-child > span {
-    color: #e8f7ff !important;
+    color: #4e758d !important;
   }
 
   #root aside > div.mt-auto {

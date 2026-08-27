@@ -33,3 +33,5 @@
 - [x] Capitalize SYNAPSE in the remaining single sign-in author-credit line.
 - [x] Set the Private Workspace banner and workspace name text to white and remove the collaboration orbit from that banner.
 - [x] Verify the banner uses only the TaskNest wave field and save a banner-correction checkpoint.
+- [x] Correct the Private Workspace banner to a genuinely white background with only subtle TaskNest wave-field decoration.
+- [x] Type-check the white-background correction and save a checkpoint.
