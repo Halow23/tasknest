@@ -29,3 +29,5 @@
 - [x] Verify the sign-in branding credit is readable in the signed-out sign-in shell and save a branding checkpoint.
 - [x] Capitalize “SYNAPSE” in the TaskNest sign-in author credit.
 - [x] Remove the duplicate visual author credit and retain one sign-in brand lockup with SYNAPSE capitalized.
+- [x] Remove the duplicate sign-in author-credit regression and retain only one visible author line beside the logo.
+- [x] Capitalize SYNAPSE in the remaining single sign-in author-credit line.
