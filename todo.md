@@ -19,3 +19,5 @@
 - [x] Upgrade the task detail drawer into a timestamped, real-time-style persisted comment experience.
 - [x] Add documented, accessible keyboard navigation for Kanban columns and task cards.
 - [x] Add lifecycle, comment, and keyboard-navigation tests; verify the live experience and save a completion checkpoint.
+- [x] Restore the generated TaskNest supporting visual assets beyond the logo in purposeful dashboard surfaces.
+- [x] Verify the supporting asset URLs render in the live workspace and save an asset-visibility checkpoint.
