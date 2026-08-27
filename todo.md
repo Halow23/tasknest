@@ -14,3 +14,8 @@
 - [x] Save the final post-migration completion checkpoint after all validation passes.
 - [x] Fix the accessible DialogTitle warning triggered by the TaskNest interface.
 - [x] Verify the affected dialog renders without console accessibility warnings and save the accessibility-fix checkpoint.
+- [x] Add protected project and task update/delete procedures with workspace membership enforcement.
+- [x] Add project and task edit forms plus explicit, text-confirmed destructive deletion controls.
+- [x] Upgrade the task detail drawer into a timestamped, real-time-style persisted comment experience.
+- [x] Add documented, accessible keyboard navigation for Kanban columns and task cards.
+- [x] Add lifecycle, comment, and keyboard-navigation tests; verify the live experience and save a completion checkpoint.

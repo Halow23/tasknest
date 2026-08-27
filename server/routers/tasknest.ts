@@ -172,6 +172,27 @@ export const tasknestRouter = router({
       if (!project) throw new Error("Could not create project.");
       return project;
     }),
+    update: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), name: z.string().trim().min(1).max(120).optional(), description: z.string().trim().max(2000).nullable().optional(), color: z.string().regex(/^#[A-Fa-f0-9]{6}$/).optional() })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      const updateSet = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.color !== undefined ? { color: input.color } : {}),
+      };
+      if (Object.keys(updateSet).length === 0) return project;
+      await db.update(projects).set(updateSet).where(eq(projects.id, input.projectId));
+      return getTaskNestProject(input.projectId);
+    }),
+    delete: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), confirmation: z.string().trim().min(1).max(120) })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      if (input.confirmation !== project.name) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Enter the exact project name to delete it." });
+      }
+      const db = await requireDb();
+      await db.delete(projects).where(eq(projects.id, input.projectId));
+      return { deletedProjectId: project.id };
+    }),
   }),
   task: router({
     list: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
@@ -205,7 +226,7 @@ export const tasknestRouter = router({
       const taskId = Number(created[0].insertId);
       if (input.assigneeIds?.length) await db.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId, userId })));
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
-      return getTaskDetail(taskId);
+      return { taskId, projectId: project.id };
     }),
     update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
@@ -221,7 +242,16 @@ export const tasknestRouter = router({
       const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}) };
       if (Object.keys(updateSet).length > 0) await db.update(tasks).set(updateSet).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated" });
-      return getTaskDetail(input.taskId);
+      return { taskId: input.taskId, projectId: result.project.id };
+    }),
+    delete: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), confirmation: z.string().trim().min(1).max(240) })).mutation(async ({ ctx, input }) => {
+      const result = await assertTaskMember(input.taskId, ctx.user.id);
+      if (input.confirmation !== result.task.title) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Enter the exact task title to delete it." });
+      }
+      const db = await requireDb();
+      await db.delete(tasks).where(eq(tasks.id, input.taskId));
+      return { deletedTaskId: input.taskId, projectId: result.project.id };
     }),
     move: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), status: taskStatusSchema, sortOrder: z.number().int().min(0).max(2_147_483_647).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
@@ -229,7 +259,7 @@ export const tasknestRouter = router({
       const completedAt = input.status === "done" ? new Date() : null;
       await db.update(tasks).set({ status: input.status as TaskStatus, sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000), completedAt }).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
-      return getTaskDetail(input.taskId);
+      return { taskId: input.taskId, projectId: result.project.id, status: input.status };
     }),
   }),
   subtask: router({
@@ -256,8 +286,9 @@ export const tasknestRouter = router({
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const db = await requireDb();
       const created = await db.insert(comments).values({ taskId: input.taskId, authorId: ctx.user.id, body: input.body });
+      const commentId = Number(created[0].insertId);
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "comment_added" });
-      return { id: Number(created[0].insertId) };
+      return { id: commentId, body: input.body, createdAt: new Date(), authorId: ctx.user.id, authorName: ctx.user.name };
     }),
   }),
   attachment: router({

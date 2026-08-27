@@ -80,16 +80,38 @@ describe("TaskNest live collaboration workflows", () => {
     const caller = appRouter.createCaller(authedContext());
     await expect(caller.tasknest.project.create({ workspaceId: 4, name: "Launch", color: "#38A9F2" })).resolves.toMatchObject({ id: 10, name: "Launch" });
     state.selectRows = [state.project];
-    await expect(caller.tasknest.task.create({ projectId: 10, title: "Confirm live task persistence" })).resolves.toMatchObject({ id: 88, title: "Live task" });
+    await expect(caller.tasknest.task.create({ projectId: 10, title: "Confirm live task persistence" })).resolves.toEqual({ taskId: 88, projectId: 10 });
   });
 
   it("persists a Kanban move and collaboration mutations for a workspace member", async () => {
     state.selectRows = [state.project];
     const caller = appRouter.createCaller(authedContext());
-    await expect(caller.tasknest.task.move({ taskId: 88, status: "review" })).resolves.toMatchObject({ id: 88 });
+    await expect(caller.tasknest.task.move({ taskId: 88, status: "review" })).resolves.toMatchObject({ taskId: 88, status: "review" });
     await expect(caller.tasknest.subtask.create({ taskId: 88, title: "Check live updates" })).resolves.toEqual({ id: 88 });
-    await expect(caller.tasknest.comment.create({ taskId: 88, body: "This is stored for the team." })).resolves.toEqual({ id: 88 });
+    state.selectRows = [{ id: 88, body: "This is stored for the team.", createdAt: new Date(), authorId: 1, authorName: "Workflow User" }];
+    await expect(caller.tasknest.comment.create({ taskId: 88, body: "This is stored for the team." })).resolves.toMatchObject({ id: 88, authorName: "Workflow User" });
     expect(mockDb.update).toHaveBeenCalled();
+  });
+
+  it("updates project and task context for a workspace member", async () => {
+    state.selectRows = [state.project];
+    const caller = appRouter.createCaller(authedContext());
+    await expect(caller.tasknest.project.update({ projectId: 10, name: "Launch v2", color: "#6EBB92" })).resolves.toMatchObject({ id: 10 });
+    state.selectRows = [state.project];
+    await expect(caller.tasknest.task.update({ taskId: 88, title: "Updated live task", priority: "high" })).resolves.toEqual({ taskId: 88, projectId: 10 });
+    expect(mockDb.update).toHaveBeenCalled();
+  });
+
+  it("requires exact confirmation and membership for destructive operations", async () => {
+    state.selectRows = [state.project];
+    const caller = appRouter.createCaller(authedContext());
+    await expect(caller.tasknest.project.delete({ projectId: 10, confirmation: "wrong" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.tasknest.project.delete({ projectId: 10, confirmation: "Launch" })).resolves.toEqual({ deletedProjectId: 10 });
+    await expect(caller.tasknest.task.delete({ taskId: 88, confirmation: "wrong" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.tasknest.task.delete({ taskId: 88, confirmation: "Live task" })).resolves.toEqual({ deletedTaskId: 88, projectId: 10 });
+    state.workspaceMember = undefined;
+    await expect(caller.tasknest.task.delete({ taskId: 88, confirmation: "Live task" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mockDb.delete).toHaveBeenCalledTimes(2);
   });
 
   it("blocks a member from reading another workspace's projects", async () => {
