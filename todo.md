@@ -35,3 +35,5 @@
 - [x] Verify the banner uses only the TaskNest wave field and save a banner-correction checkpoint.
 - [x] Correct the Private Workspace banner to a genuinely white background with only subtle TaskNest wave-field decoration.
 - [x] Type-check the white-background correction and save a checkpoint.
+- [x] Restore the Private Workspace TaskNest wave field in its original unmasked, unfiltered form.
+- [x] Type-check the unmasked wave-field refinement and save a checkpoint.

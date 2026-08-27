@@ -80,9 +80,8 @@
   #root main > div > section > div.relative::after {
     background: url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
     content: "";
-    filter: grayscale(1) brightness(1.65) contrast(0.7);
     inset: 0 0 0 auto;
-    opacity: 0.16;
+    opacity: 1;
     pointer-events: none;
     position: absolute;
     width: min(46%, 500px);
