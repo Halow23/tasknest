@@ -1,0 +1,14 @@
+# Project TODO
+
+- [x] Replace the static TaskNest data layer with the authenticated full-stack app foundation.
+- [x] Create and migrate a workspace, membership, project, task, subtask, comment, attachment, and activity-event schema with no seeded work data.
+- [x] Implement protected workspace-scoped tRPC queries and mutations for team collaboration.
+- [x] Add secure authenticated workspace onboarding and teammate invitation flows without configurable RBAC.
+- [x] Connect the Kanban board, task drawer, calendar, analytics, and project rail to persistent database data.
+- [x] Add durable attachment upload metadata using object storage instead of database file bytes.
+- [x] Cover the access boundary and core task workflows with Vitest tests.
+- [x] Verify production build and responsive interactive behavior, then save a completion checkpoint.
+- [x] Add integration-grade unit coverage for workspace/project/task success paths, membership denial, subtask/comment behavior, invite acceptance, and attachment validation.
+- [x] Browser-test real workspace creation, project creation, task movement, task-sheet collaboration, and empty/error states without adding seeded data.
+- [x] Browser-test an invalid live-form submission and confirm clear user-facing validation feedback.
+- [x] Save the final post-migration completion checkpoint after all validation passes.
