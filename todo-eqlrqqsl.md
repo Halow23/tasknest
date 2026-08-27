@@ -12,4 +12,4 @@
 - [x] Record and implement the user’s requested project edits.
 - [x] Add or update automated tests for any changed behavior.
 - [x] Verify the updated interface and save a published checkpoint.
-- [ ] Save the verified Foundation University email-domain restriction as a published checkpoint.
+- [x] Save the verified Foundation University email-domain restriction as a published checkpoint.
