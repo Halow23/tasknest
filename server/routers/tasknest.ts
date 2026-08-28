@@ -149,7 +149,7 @@ export const tasknestRouter = router({
       await assertWorkspaceMember(input.workspaceId, ctx.user.id);
       const db = await requireDb();
       const invites = await db
-        .select({ id: workspaceInvites.id, recipientEmail: workspaceInvites.recipientEmail, expiresAt: workspaceInvites.expiresAt, createdAt: workspaceInvites.createdAt })
+        .select({ id: workspaceInvites.id, token: workspaceInvites.token, recipientEmail: workspaceInvites.recipientEmail, expiresAt: workspaceInvites.expiresAt, createdAt: workspaceInvites.createdAt })
         .from(workspaceInvites)
         .where(and(eq(workspaceInvites.workspaceId, input.workspaceId), isNull(workspaceInvites.acceptedAt), isNull(workspaceInvites.revokedAt), gt(workspaceInvites.expiresAt, new Date())))
         .orderBy(desc(workspaceInvites.createdAt))

@@ -52,3 +52,8 @@
 - [x] Save the invitation-management checkpoint.
 - [x] Diagnose the mismatch between the published TaskNest link and the latest shared-project version.
 - [ ] Publish a fresh checkpoint from the latest shared TaskNest revision and verify the live site serves it.
+- [ ] Replace the unverified Resend sender address used for TaskNest invitation emails with a verified-domain sender.
+- [ ] Validate the corrected invitation-email configuration and save an email-delivery checkpoint.
+- [x] Add a prefilled mail-app fallback for secure invitations that does not depend on Resend sender verification.
+- [x] Add regression coverage and validate the fallback through focused tests, type checking, and a production build.
+- [x] Save the mail-app fallback checkpoint.
