@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("Project calendar modes", () => {
   it("keeps the agenda list and exposes a navigable month grid", async () => {
-    const source = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    const source = await readFile(new URL("./home/CalendarView.tsx", import.meta.url), "utf8");
 
     expect(source).toContain('aria-label="Calendar view"');
     expect(source).toContain('aria-pressed={calendarMode === "list"}');
