@@ -76,3 +76,5 @@
 - [x] Confirm no project-controlled Amplitude noise exists, document the managed-shell limitation, and leave TaskNest code unchanged.
 - [x] Document the managed-shell origin of the Amplitude 403/400 console noise in a TaskNest troubleshooting note.
 - [x] Save a checkpoint preserving the Amplitude diagnosis and project state.
+- [x] Inspect migration 0005 and confirm its production migration state.
+- [x] Apply migration 0005 safely, verify labels/notifications/My Tasks schema, and save a checkpoint.
