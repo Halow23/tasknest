@@ -476,6 +476,18 @@ export const tasknestRouter = router({
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
       return { taskId: input.taskId, projectId: result.project.id, status: input.status };
     }),
+    myTasks: protectedProcedure.query(async ({ ctx }) => {
+      const workspace = await getFirstWorkspaceForUser(ctx.user.id);
+      if (!workspace) return [];
+      const db = await requireDb();
+      return db
+        .select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, dueAt: tasks.dueAt, projectId: projects.id, projectName: projects.name, projectColor: projects.color })
+        .from(taskAssignees)
+        .innerJoin(tasks, eq(taskAssignees.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(and(eq(taskAssignees.userId, ctx.user.id), sql`${tasks.completedAt} is null`, eq(projects.workspaceId, workspace.id), eq(projects.archived, false)))
+        .orderBy(sql`${tasks.dueAt} is null`, asc(tasks.dueAt));
+    }),
   }),
   label: router({
     list: protectedProcedure.input(workspaceInput).query(async ({ ctx, input }) => {

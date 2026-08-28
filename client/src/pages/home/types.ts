@@ -1,6 +1,6 @@
 export type Status = "backlog" | "progress" | "review" | "done";
 export type Priority = "high" | "medium" | "low";
-export type View = "board" | "calendar" | "analytics";
+export type View = "board" | "calendar" | "analytics" | "mytasks";
 export type CalendarMode = "list" | "month";
 export type Member = { id: number; name: string | null; email: string | null };
 export type TaskSummary = { id: number; title: string; description: string | null; status: Status; priority: Priority; dueAt: Date | null };
