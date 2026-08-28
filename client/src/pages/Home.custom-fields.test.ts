@@ -10,8 +10,21 @@ describe("custom fields integration", () => {
     expect(source).toContain("<TaskCustomFields fields={fields}");
     expect(source).toContain("fieldValues: toFieldValuesInput(newTaskFieldValues)");
     expect(source).toContain("fieldValues: toFieldValuesInput(fieldValues)");
-    expect(source).toContain("<ProjectFieldsManager projectId={activeProject.id} />");
     expect(source).toContain("task.fieldValues?.length > 0");
+  });
+
+  it("keeps the project edit dialog free of the custom fields manager", async () => {
+    const source = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    expect(source).not.toContain("ProjectFieldsManager");
+  });
+
+  it("keeps date pickers from overflowing when the clear button is shown", async () => {
+    const source = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    const fields = await readFile(new URL("../components/TaskCustomFields.tsx", import.meta.url), "utf8");
+    for (const src of [source, fields]) {
+      expect(src).toContain("flex-1 min-w-0 justify-start");
+      expect(src).not.toContain("w-full justify-start px-3 text-left font-normal");
+    }
   });
 
   it("replaces native select and date inputs with shadcn Select and Calendar components", async () => {

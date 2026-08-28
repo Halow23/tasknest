@@ -40,7 +40,7 @@ function DateFieldPicker({ id, label, value, onChange }: { id: string; label: st
   return <div className="flex gap-2">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" className={cn("h-10 w-full justify-start px-3 text-left font-normal", !value && "text-muted-foreground")} aria-label={label}>
+        <Button type="button" variant="outline" className={cn("h-10 flex-1 min-w-0 justify-start px-3 text-left font-normal", !value && "text-muted-foreground")} aria-label={label}>
           <CalendarIcon className="mr-1 h-4 w-4 text-[#4B92BB]" />
           {value ? formatDisplayDate(value) : "Pick a date"}
         </Button>
