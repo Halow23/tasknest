@@ -19,4 +19,4 @@
 - [x] Add protected administrator procedures to manage approved domains, allowlisted external emails, and view denial audit events.
 - [x] Build an administrator settings page for access-policy management and denied sign-in audit review.
 - [x] Add automated regression coverage, verify the UI, and publish the completed access-management update.
-- [ ] Save the verified managed-domain, external allowlist, and denied-sign-in audit feature as a published checkpoint.
+- [x] Save the verified managed-domain, external allowlist, and denied-sign-in audit feature as a published checkpoint.
