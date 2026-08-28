@@ -65,3 +65,6 @@
 - [x] Add teammate assignment selection to the new-task creation form and submit the selected member.
 - [x] Add regression coverage and validate the task-assignment flow.
 - [x] Save the task-assignment checkpoint.
+- [x] Add a Google Calendar–style list/month toggle to the Project calendar.
+- [x] Add calendar-mode regression coverage and validate the test suite, type check, and production build.
+- [x] Save the calendar-view checkpoint.
