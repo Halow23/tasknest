@@ -70,6 +70,22 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleDirectionalNavigation, true);
   }, [activeProjectId, focusedTaskId, tasks]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { const target = event.target as HTMLElement | null; if (!activeProjectId || event.metaKey || event.ctrlKey || event.altKey || target?.matches("input, textarea, select, [contenteditable='true']")) return; if (event.key === "Escape") { setSelectedTaskId(null); setNewTaskOpen(false); setProjectEditOpen(false); setProjectDeleteOpen(false); return; } if (event.key.toLowerCase() === "n") { event.preventDefault(); setNewTaskOpen(true); return; } const focused = tasks.find(task => task.id === focusedTaskId); if (!focused) return; const inColumn = (status: Status) => tasks.filter(task => task.status === status); const currentColumn = columns.findIndex(column => column.id === focused.status); const currentIndex = inColumn(focused.status).findIndex(task => task.id === focused.id); let next: TaskSummary | undefined; if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); const direction = event.key === "ArrowLeft" ? -1 : 1; const column = columns[currentColumn + direction]; if (column) next = inColumn(column.id)[Math.min(currentIndex, Math.max(0, inColumn(column.id).length - 1))]; } else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); next = inColumn(focused.status)[currentIndex + (event.key === "ArrowUp" ? -1 : 1)]; } else if (event.key === "Enter") { event.preventDefault(); setSelectedTaskId(focused.id); return; } else if (event.key.toLowerCase() === "e") { event.preventDefault(); setSelectedTaskId(focused.id); return; } if (next) { setFocusedTaskId(next.id); requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-task-id='${next.id}']`)?.focus()); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [activeProjectId, tasks, focusedTaskId]);
+  // Task deep links: the open task is mirrored to ?task=<id> so refresh, back/forward, and shared URLs restore the drawer.
+  useEffect(() => {
+    const readParam = () => {
+      const raw = new URLSearchParams(window.location.search).get("task");
+      const id = raw ? Number(raw) : null;
+      setSelectedTaskId(id && Number.isInteger(id) && id > 0 ? id : null);
+    };
+    readParam();
+    window.addEventListener("popstate", readParam);
+    return () => window.removeEventListener("popstate", readParam);
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedTaskId) url.searchParams.set("task", String(selectedTaskId)); else url.searchParams.delete("task");
+    window.history.replaceState(window.history.state, "", url);
+  }, [selectedTaskId]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen(true); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, []);
   if (loading || accessQuery.isLoading || (isAuthenticated && workspaceQuery.isLoading)) 
   return <main className="flex min-h-screen items-center justify-center bg-[#F7FAFB] text-sm font-bold text-[#5F7E91]">Opening your workspace…</main>;
