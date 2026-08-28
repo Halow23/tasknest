@@ -72,5 +72,7 @@
 - [x] Apply the non-destructive project_fields and task_field_values schema fix.
 - [x] Validate the field workflow tests, type check, and production build.
 - [x] Save the field-list fix checkpoint.
-- [ ] Trace the source of the Amplitude remote-config and HTTP API requests in the TaskNest project and managed shell.
-- [ ] Remove project-controlled Amplitude noise, validate the result, and save a checkpoint.
+- [x] Trace the source of the Amplitude remote-config and HTTP API requests in the TaskNest project and managed shell; confirm they originate in the managed shell rather than TaskNest.
+- [x] Confirm no project-controlled Amplitude noise exists, document the managed-shell limitation, and leave TaskNest code unchanged.
+- [x] Document the managed-shell origin of the Amplitude 403/400 console noise in a TaskNest troubleshooting note.
+- [x] Save a checkpoint preserving the Amplitude diagnosis and project state.
