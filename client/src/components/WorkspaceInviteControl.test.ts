@@ -12,7 +12,7 @@ describe("WorkspaceInviteControl", () => {
     expect(source).toContain("sendInviteEmail.mutate({ inviteId, appOrigin: window.location.origin })");
     expect(source).toContain("openMailApp");
     expect(source).toContain("mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}");
-    expect(source).toContain("Open email app");
+    expect(source).toContain("Send email");
     expect(source).toContain("Pending invitations");
     expect(source).toContain("revokeInvite.mutate({ inviteId: invite.id })");
     expect(source).toContain("acceptInvite.mutate({ token: inviteToken })");
