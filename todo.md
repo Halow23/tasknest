@@ -60,3 +60,8 @@
 - [x] Restore a clearly labeled prefilled Send email action for invitations while keeping Send via Resend available.
 - [x] Add regression coverage and validate the restored email action with focused tests, type checking, and a production build.
 - [x] Save the invitation-control checkpoint.
+- [x] Add teammate selection to the new-task creation form and submit the selected assignee.
+- [x] Add regression coverage and validate task creation assignment.
+- [x] Add teammate assignment selection to the new-task creation form and submit the selected member.
+- [x] Add regression coverage and validate the task-assignment flow.
+- [x] Save the task-assignment checkpoint.

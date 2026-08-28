@@ -28,13 +28,16 @@ function selectChain() {
     where: vi.fn(() => chain),
     orderBy: vi.fn(() => chain),
     limit: vi.fn(() => Promise.resolve(state.selectRows)),
+    then: (resolve: (value: unknown[]) => unknown, reject: (reason?: unknown) => unknown) => Promise.resolve(state.selectRows).then(resolve, reject),
   };
   return chain;
 }
 
+const insertedValues = vi.fn();
+
 const mockDb = {
   select: vi.fn(() => selectChain()),
-  insert: vi.fn(() => ({ values: vi.fn(() => operation([{ insertId: 88 }])) })),
+  insert: vi.fn(() => ({ values: vi.fn((values: unknown) => { insertedValues(values); return operation([{ insertId: 88 }]); }) })),
   update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })) })),
   delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
   transaction: vi.fn(async (callback: (tx: typeof mockDb) => Promise<unknown>) => callback(mockDb)),
@@ -71,7 +74,7 @@ describe("TaskNest live collaboration workflows", () => {
     state.selectRows = [];
     state.storagePut.mockClear();
     state.sendWorkspaceInvitationEmail.mockClear();
-    mockDb.insert.mockClear(); mockDb.update.mockClear(); mockDb.select.mockClear(); mockDb.transaction.mockClear();
+    mockDb.insert.mockClear(); mockDb.update.mockClear(); mockDb.select.mockClear(); mockDb.transaction.mockClear(); insertedValues.mockClear();
   });
 
   it("creates a first private workspace without seeding work data", async () => {
@@ -84,6 +87,14 @@ describe("TaskNest live collaboration workflows", () => {
     await expect(caller.tasknest.project.create({ workspaceId: 4, name: "Launch", color: "#38A9F2" })).resolves.toMatchObject({ id: 10, name: "Launch" });
     state.selectRows = [state.project];
     await expect(caller.tasknest.task.create({ projectId: 10, title: "Confirm live task persistence" })).resolves.toEqual({ taskId: 88, projectId: 10 });
+  });
+
+  it("persists the selected workspace member when creating a task", async () => {
+    state.selectRows = [{ ...state.project, userId: 2 }];
+    const caller = appRouter.createCaller(authedContext());
+
+    await expect(caller.tasknest.task.create({ projectId: 10, title: "Assigned from creation", assigneeIds: [2] })).resolves.toEqual({ taskId: 88, projectId: 10 });
+    expect(insertedValues).toHaveBeenCalledWith([{ taskId: 88, userId: 2 }]);
   });
 
   it("persists a Kanban move and collaboration mutations for a workspace member", async () => {
