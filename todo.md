@@ -68,3 +68,7 @@
 - [x] Add a Google Calendar–style list/month toggle to the Project calendar.
 - [x] Add calendar-mode regression coverage and validate the test suite, type check, and production build.
 - [x] Save the calendar-view checkpoint.
+- [x] Diagnose the production tasknest.field.list 500 against the current project_fields schema and migration history.
+- [x] Apply the non-destructive project_fields and task_field_values schema fix.
+- [x] Validate the field workflow tests, type check, and production build.
+- [x] Save the field-list fix checkpoint.
