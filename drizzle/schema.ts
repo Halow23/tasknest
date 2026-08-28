@@ -190,6 +190,46 @@ export const taskAssignees = mysqlTable(
   ],
 );
 
+/** Per-project custom field definitions for tasks. */
+export const projectFieldType = ["text", "select", "date"] as const;
+
+export const projectFields = mysqlTable(
+  "project_fields",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("projectId").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    type: mysqlEnum("type", projectFieldType).notNull().default("text"),
+    /** Select-field options as a plain string array; null for text/date fields. */
+    options: json("options"),
+    sortOrder: int("sortOrder").notNull().default(0),
+    createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("project_field_name_unique").on(table.projectId, table.name),
+    index("project_field_order_idx").on(table.projectId, table.sortOrder),
+  ],
+);
+
+/** Stored custom field answers for a task. Dates are stored as YYYY-MM-DD strings. */
+export const taskFieldValues = mysqlTable(
+  "task_field_values",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    taskId: int("taskId").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    fieldId: int("fieldId").notNull().references(() => projectFields.id, { onDelete: "cascade" }),
+    value: varchar("value", { length: 2000 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("task_field_value_unique").on(table.taskId, table.fieldId),
+    index("task_field_value_field_idx").on(table.fieldId),
+  ],
+);
+
 export const subtasks = mysqlTable(
   "subtasks",
   {
@@ -267,4 +307,5 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type TaskStatus = (typeof taskStatus)[number];
 export type TaskPriority = (typeof taskPriority)[number];
+export type ProjectFieldType = (typeof projectFieldType)[number];
 export type DeniedSignInReason = (typeof deniedSignInReason)[number];

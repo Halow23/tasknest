@@ -6,8 +6,8 @@ describe("new task assignment", () => {
     const source = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
 
     expect(source).toContain('id="task-assignee"');
-    expect(source).toContain("members.map(member => <option");
-    expect(source).toContain("setTaskAssigneeId(event.target.value)");
-    expect(source).toContain("assigneeIds: taskAssigneeId ? [Number(taskAssigneeId)] : []");
+    expect(source).toContain("members.map(member => <SelectItem");
+    expect(source).toContain("onValueChange={setTaskAssigneeId}");
+    expect(source).toContain('taskAssigneeId && taskAssigneeId !== "unassigned" ? [Number(taskAssigneeId)] : []');
   });
 });

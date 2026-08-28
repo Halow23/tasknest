@@ -5,14 +5,17 @@ import {
   activityEvents,
   attachments,
   comments,
+  projectFields,
   projects,
   subtasks,
   taskAssignees,
+  taskFieldValues,
   tasks,
   users,
   workspaceInvites,
   workspaceMembers,
   workspaces,
+  type ProjectFieldType,
   type TaskPriority,
   type TaskStatus,
 } from "../../drizzle/schema";
@@ -30,11 +33,58 @@ import { protectedProcedure, router } from "../_core/trpc";
 
 const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
 const taskPrioritySchema = z.enum(["high", "medium", "low"]);
+const projectFieldTypeSchema = z.enum(["text", "select", "date"]);
+const fieldOptionsSchema = z.array(z.string().trim().min(1).max(80)).min(1).max(20);
+const fieldValueInputSchema = z.object({ fieldId: z.number().int().positive(), value: z.string().trim().max(2000) });
 
 const workspaceInput = z.object({ workspaceId: z.number().int().positive() });
 const workspaceInviteInput = workspaceInput.extend({ recipientEmail: z.string().trim().email().max(320) });
 const projectInput = z.object({ projectId: z.number().int().positive() });
 const taskInput = z.object({ taskId: z.number().int().positive() });
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidIsoDate(value: string) {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Validates custom field values against the field definitions of the task's
+ * project and returns the rows to persist. Empty values are dropped so the
+ * stored answer is removed (replace-all semantics like assignees).
+ */
+async function resolveFieldValues(input: { projectId: number; fieldValues?: { fieldId: number; value: string }[] }) {
+  const entries = input.fieldValues?.filter((entry) => entry.value.length > 0) ?? [];
+  if (entries.length === 0) return [];
+  const db = await requireDb();
+  const fieldRows = await db.select().from(projectFields).where(inArray(projectFields.id, entries.map((entry) => entry.fieldId)));
+  const fieldsById = new Map(fieldRows.map((field) => [field.id, field]));
+  const rows: { fieldId: number; value: string }[] = [];
+  for (const entry of entries) {
+    const field = fieldsById.get(entry.fieldId);
+    if (!field || field.projectId !== input.projectId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Custom fields must belong to the task's project." });
+    }
+    if (field.type === "select") {
+      const options = Array.isArray(field.options) ? (field.options as string[]) : [];
+      if (!options.includes(entry.value)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `“${entry.value}” is not an option for ${field.name}.` });
+      }
+    } else if (field.type === "date" && !isValidIsoDate(entry.value)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: `${field.name} requires a valid date (YYYY-MM-DD).` });
+    }
+    rows.push({ fieldId: field.id, value: entry.value });
+  }
+  return rows;
+}
+
+async function writeFieldValues(taskId: number, rows: { fieldId: number; value: string }[]) {
+  if (rows.length === 0) return;
+  const db = await requireDb();
+  await db.insert(taskFieldValues).values(rows.map((row) => ({ taskId, fieldId: row.fieldId, value: row.value }))).onDuplicateKeyUpdate({ set: { value: sql`values(value)` } });
+}
 
 async function assertWorkspaceMember(workspaceId: number, userId: number) {
   const member = await getWorkspaceMember(workspaceId, userId);
@@ -61,6 +111,20 @@ async function assertTaskMember(taskId: number, userId: number) {
   return result;
 }
 
+async function assertFieldMember(fieldId: number, userId: number) {
+  const db = await requireDb();
+  const rows = await db
+    .select({ field: projectFields, workspaceId: projects.workspaceId })
+    .from(projectFields)
+    .innerJoin(projects, eq(projectFields.projectId, projects.id))
+    .where(eq(projectFields.id, fieldId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Custom field not found." });
+  await assertWorkspaceMember(row.workspaceId, userId);
+  return { ...row.field, workspaceId: row.workspaceId };
+}
+
 async function logActivity(input: {
   workspaceId: number;
   actorId: number;
@@ -85,7 +149,7 @@ async function getTaskDetail(taskId: number) {
   const taskResult = await getTaskProject(taskId);
   if (!taskResult) return null;
 
-  const [assignees, taskSubtasks, taskComments, taskAttachments, activity] = await Promise.all([
+  const [assignees, taskSubtasks, taskComments, taskAttachments, activity, fieldValues] = await Promise.all([
     db
       .select({ id: users.id, name: users.name, email: users.email })
       .from(taskAssignees)
@@ -106,9 +170,14 @@ async function getTaskDetail(taskId: number) {
       .where(eq(activityEvents.taskId, taskId))
       .orderBy(desc(activityEvents.createdAt))
       .limit(20),
+    db
+      .select({ fieldId: taskFieldValues.fieldId, value: taskFieldValues.value, name: projectFields.name, type: projectFields.type, options: projectFields.options })
+      .from(taskFieldValues)
+      .innerJoin(projectFields, eq(taskFieldValues.fieldId, projectFields.id))
+      .where(eq(taskFieldValues.taskId, taskId)),
   ]);
 
-  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity };
+  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues };
 }
 
 export const tasknestRouter = router({
@@ -260,22 +329,25 @@ export const tasknestRouter = router({
       if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       return detail;
     }),
-    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional() })).mutation(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       if (input.assigneeIds?.length) {
         const db = await requireDb();
         const members = await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, project.workspaceId), inArray(workspaceMembers.userId, input.assigneeIds)));
         if (members.length !== new Set(input.assigneeIds).size) throw new TRPCError({ code: "FORBIDDEN", message: "Tasks can only be assigned to workspace members." });
       }
+      const fieldRows = await resolveFieldValues({ projectId: project.id, fieldValues: input.fieldValues });
       const db = await requireDb();
       const created = await db.insert(tasks).values({ projectId: input.projectId, title: input.title, description: input.description || null, priority: input.priority, dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
       const taskId = Number(created[0].insertId);
       if (input.assigneeIds?.length) await db.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId, userId })));
+      await writeFieldValues(taskId, fieldRows);
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
       return { taskId, projectId: project.id };
     }),
-    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
+    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
+      const fieldRows = input.fieldValues !== undefined ? await resolveFieldValues({ projectId: result.project.id, fieldValues: input.fieldValues }) : null;
       const db = await requireDb();
       if (input.assigneeIds) {
         const members = await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, result.project.workspaceId), inArray(workspaceMembers.userId, input.assigneeIds)));
@@ -283,6 +355,12 @@ export const tasknestRouter = router({
         await db.transaction(async (tx) => {
           await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, input.taskId));
           if (input.assigneeIds?.length) await tx.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId: input.taskId, userId })));
+        });
+      }
+      if (fieldRows !== null) {
+        await db.transaction(async (tx) => {
+          await tx.delete(taskFieldValues).where(eq(taskFieldValues.taskId, input.taskId));
+          if (fieldRows.length) await tx.insert(taskFieldValues).values(fieldRows.map((row) => ({ taskId: input.taskId, fieldId: row.fieldId, value: row.value })));
         });
       }
       const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}) };
@@ -306,6 +384,44 @@ export const tasknestRouter = router({
       await db.update(tasks).set({ status: input.status as TaskStatus, sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000), completedAt }).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
       return { taskId: input.taskId, projectId: result.project.id, status: input.status };
+    }),
+  }),
+  field: router({
+    list: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
+      await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      return db.select().from(projectFields).where(eq(projectFields.projectId, input.projectId)).orderBy(asc(projectFields.sortOrder), asc(projectFields.createdAt));
+    }),
+    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), name: z.string().trim().min(1).max(60), type: projectFieldTypeSchema.default("text"), options: fieldOptionsSchema.optional() })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      if (input.type === "select" && !input.options) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Dropdown fields need at least one option." });
+      }
+      const db = await requireDb();
+      const existing = await db.select({ id: projectFields.id }).from(projectFields).where(and(eq(projectFields.projectId, input.projectId), eq(projectFields.name, input.name))).limit(1);
+      if (existing.length > 0) throw new TRPCError({ code: "CONFLICT", message: "A custom field with this name already exists in the project." });
+      const created = await db.insert(projectFields).values({ projectId: input.projectId, name: input.name, type: input.type as ProjectFieldType, options: input.type === "select" ? input.options ?? null : null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
+      const fieldId = Number(created[0].insertId);
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_updated", metadata: { action: "custom_field_created", fieldName: input.name, fieldType: input.type } });
+      return { fieldId, projectId: project.id };
+    }),
+    update: protectedProcedure.input(z.object({ fieldId: z.number().int().positive(), name: z.string().trim().min(1).max(60).optional(), options: fieldOptionsSchema.optional() })).mutation(async ({ ctx, input }) => {
+      const field = await assertFieldMember(input.fieldId, ctx.user.id);
+      const db = await requireDb();
+      const updateSet = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.options !== undefined && field.type === "select" ? { options: input.options } : {}),
+      };
+      if (Object.keys(updateSet).length === 0) return { fieldId: field.id };
+      await db.update(projectFields).set(updateSet).where(eq(projectFields.id, input.fieldId));
+      return { fieldId: field.id };
+    }),
+    delete: protectedProcedure.input(z.object({ fieldId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const field = await assertFieldMember(input.fieldId, ctx.user.id);
+      const db = await requireDb();
+      await db.delete(projectFields).where(eq(projectFields.id, input.fieldId));
+      await logActivity({ workspaceId: field.workspaceId, projectId: field.projectId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "custom_field_deleted", fieldName: field.name } });
+      return { deletedFieldId: field.id };
     }),
   }),
   subtask: router({
