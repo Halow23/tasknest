@@ -239,9 +239,9 @@ export const tasknestRouter = router({
   workspace: router({
     current: protectedProcedure.query(async ({ ctx }) => {
       const workspace = await getFirstWorkspaceForUser(ctx.user.id);
-      if (!workspace) return { workspace: null, members: [], projects: [], labels: [] };
+      if (!workspace) return { workspace: null, members: [], projects: [], labels: [], archivedProjects: [] };
       const db = await requireDb();
-      const [members, availableProjects, workspaceLabels] = await Promise.all([
+      const [members, availableProjects, workspaceLabels, archivedProjects] = await Promise.all([
         db
           .select({ id: users.id, name: users.name, email: users.email, joinedAt: workspaceMembers.joinedAt })
           .from(workspaceMembers)
@@ -250,8 +250,9 @@ export const tasknestRouter = router({
           .orderBy(asc(workspaceMembers.joinedAt)),
         db.select().from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, false))).orderBy(asc(projects.createdAt)),
         db.select({ id: labels.id, name: labels.name, color: labels.color }).from(labels).where(eq(labels.workspaceId, workspace.id)).orderBy(asc(labels.name)),
+        db.select({ id: projects.id, name: projects.name, color: projects.color, archived: projects.archived, createdAt: projects.createdAt }).from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, true))).orderBy(asc(projects.name))
       ]);
-      return { workspace, members, projects: availableProjects, labels: workspaceLabels };
+      return { workspace, members, projects: availableProjects, labels: workspaceLabels, archivedProjects };
     }),
     create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => {
       const existing = await getFirstWorkspaceForUser(ctx.user.id);
@@ -363,6 +364,20 @@ export const tasknestRouter = router({
       const db = await requireDb();
       await db.delete(projects).where(eq(projects.id, input.projectId));
       return { deletedProjectId: project.id };
+    }),
+    archive: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      await db.update(projects).set({ archived: true }).where(eq(projects.id, input.projectId));
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_archived", projectName: project.name } });
+      return { archivedProjectId: project.id };
+    }),
+    unarchive: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      await db.update(projects).set({ archived: false }).where(eq(projects.id, input.projectId));
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_unarchived", projectName: project.name } });
+      return { unarchivedProjectId: project.id };
     }),
   }),
   task: router({
