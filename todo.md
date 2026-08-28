@@ -50,3 +50,5 @@
 - [x] Configure secure direct email delivery for generated invitation links and connect it to the invite dialog.
 - [x] Add workflow tests and validate the production build for invitation management.
 - [x] Save the invitation-management checkpoint.
+- [x] Diagnose the mismatch between the published TaskNest link and the latest shared-project version.
+- [ ] Publish a fresh checkpoint from the latest shared TaskNest revision and verify the live site serves it.
