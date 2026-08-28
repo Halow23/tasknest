@@ -6,6 +6,7 @@ import {
   attachments,
   comments,
   labels,
+  notifications,
   projectFields,
   projects,
   subtasks,
@@ -17,6 +18,7 @@ import {
   workspaceInvites,
   workspaceMembers,
   workspaces,
+  type NotificationType,
   type ProjectFieldType,
   type TaskPriority,
   type TaskStatus,
@@ -106,6 +108,21 @@ async function writeTaskLabels(taskId: number, labelIds: number[]) {
   if (labelIds.length === 0) return;
   const db = await requireDb();
   await db.insert(taskLabels).values(labelIds.map((labelId) => ({ taskId, labelId }))).onDuplicateKeyUpdate({ set: { labelId: sql`values(labelId)` } });
+}
+
+/**
+ * Queues in-app notifications for the given recipients, silently skipping the actor,
+ * invalid ids, and duplicate recipients. Failures never block the triggering mutation.
+ */
+async function notifyUsers(input: { workspaceId: number; taskId?: number; actorId: number; type: NotificationType; recipientIds: number[] }) {
+  const recipientIds = Array.from(new Set(input.recipientIds.filter(id => id && id !== input.actorId)));
+  if (recipientIds.length === 0) return;
+  try {
+    const db = await requireDb();
+    await db.insert(notifications).values(recipientIds.map(userId => ({ userId, type: input.type, actorId: input.actorId, taskId: input.taskId ?? null, workspaceId: input.workspaceId })));
+  } catch {
+    // Notification failures must not fail the triggering mutation.
+  }
 }
 
 async function assertWorkspaceMember(workspaceId: number, userId: number) {
@@ -424,6 +441,7 @@ export const tasknestRouter = router({
       const created = await db.insert(tasks).values({ projectId: input.projectId, title: input.title, description: input.description || null, priority: input.priority, dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
       const taskId = Number(created[0].insertId);
       if (input.assigneeIds?.length) await db.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId, userId })));
+      await notifyUsers({ workspaceId: project.workspaceId, taskId, actorId: ctx.user.id, type: "assigned", recipientIds: input.assigneeIds ?? [] });
       await writeFieldValues(taskId, fieldRows);
       await writeTaskLabels(taskId, labelIdRows);
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
@@ -453,6 +471,12 @@ export const tasknestRouter = router({
           await tx.delete(taskLabels).where(eq(taskLabels.taskId, input.taskId));
           if (labelIdRows.length) await tx.insert(taskLabels).values(labelIdRows.map((labelId) => ({ taskId: input.taskId, labelId })));
         });
+      }
+      if (input.assigneeIds !== undefined && input.assigneeIds.length > 0) {
+        const previousAssignees = await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, input.taskId));
+        const previous = new Set(previousAssignees.map(row => row.userId));
+        const freshAssignees = input.assigneeIds.filter(userId => !previous.has(userId));
+        await notifyUsers({ workspaceId: result.project.workspaceId, taskId: input.taskId, actorId: ctx.user.id, type: "assigned", recipientIds: freshAssignees });
       }
       const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}) };
       if (Object.keys(updateSet).length > 0) await db.update(tasks).set(updateSet).where(eq(tasks.id, input.taskId));
@@ -521,6 +545,31 @@ export const tasknestRouter = router({
       return { deletedLabelId: label.id };
     }),
   }),
+  notification: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await requireDb();
+      const rows = await db
+        .select({ id: notifications.id, type: notifications.type, readAt: notifications.readAt, createdAt: notifications.createdAt, actorName: users.name, taskId: notifications.taskId, taskTitle: tasks.title, projectName: projects.name })
+        .from(notifications)
+        .innerJoin(users, eq(notifications.actorId, users.id))
+        .leftJoin(tasks, eq(notifications.taskId, tasks.id))
+        .leftJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(notifications.userId, ctx.user.id))
+        .orderBy(sql`${notifications.readAt} is not null`, desc(notifications.createdAt))
+        .limit(50);
+      return { notifications: rows, unreadCount: rows.filter(row => !row.readAt).length };
+    }),
+    markRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, input.notificationId), eq(notifications.userId, ctx.user.id)));
+      return { markedNotificationId: input.notificationId };
+    }),
+    markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await requireDb();
+      await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, ctx.user.id), isNull(notifications.readAt)));
+      return { success: true };
+    }),
+  }),
   field: router({
     list: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
       await assertProjectMember(input.projectId, ctx.user.id);
@@ -584,6 +633,9 @@ export const tasknestRouter = router({
       const db = await requireDb();
       const created = await db.insert(comments).values({ taskId: input.taskId, authorId: ctx.user.id, body: input.body });
       const commentId = Number(created[0].insertId);
+      const taskAssigneeRows = await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, result.task.id));
+      const recipients = [...taskAssigneeRows.map(row => row.userId), result.task.createdById];
+      await notifyUsers({ workspaceId: result.project.workspaceId, taskId: result.task.id, actorId: ctx.user.id, type: "commented", recipientIds: recipients });
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "comment_added" });
       return { id: commentId, body: input.body, createdAt: new Date(), authorId: ctx.user.id, authorName: ctx.user.name };
     }),
