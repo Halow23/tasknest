@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   activityEvents,
@@ -24,6 +24,7 @@ import {
   getWorkspaceMember,
   requireDb,
 } from "../db";
+import { sendWorkspaceInvitationEmail } from "../invitationEmail";
 import { storagePut } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -31,6 +32,7 @@ const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
 const taskPrioritySchema = z.enum(["high", "medium", "low"]);
 
 const workspaceInput = z.object({ workspaceId: z.number().int().positive() });
+const workspaceInviteInput = workspaceInput.extend({ recipientEmail: z.string().trim().email().max(320) });
 const projectInput = z.object({ projectId: z.number().int().positive() });
 const taskInput = z.object({ taskId: z.number().int().positive() });
 
@@ -134,20 +136,64 @@ export const tasknestRouter = router({
       await logActivity({ workspaceId: workspace.id, actorId: ctx.user.id, type: "member_joined", metadata: { action: "workspace_created" } });
       return workspace;
     }),
-    createInvite: protectedProcedure.input(workspaceInput).mutation(async ({ ctx, input }) => {
+    createInvite: protectedProcedure.input(workspaceInviteInput).mutation(async ({ ctx, input }) => {
       await assertWorkspaceMember(input.workspaceId, ctx.user.id);
       const db = await requireDb();
       const token = crypto.randomUUID().replace(/-/g, "");
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
-      await db.insert(workspaceInvites).values({ workspaceId: input.workspaceId, token, expiresAt, createdById: ctx.user.id });
-      return { token, expiresAt };
+      const recipientEmail = input.recipientEmail.toLowerCase();
+      const created = await db.insert(workspaceInvites).values({ workspaceId: input.workspaceId, token, recipientEmail, expiresAt, createdById: ctx.user.id });
+      return { id: Number(created[0].insertId), token, recipientEmail, expiresAt };
+    }),
+    pendingInvites: protectedProcedure.input(workspaceInput).query(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      const invites = await db
+        .select({ id: workspaceInvites.id, recipientEmail: workspaceInvites.recipientEmail, expiresAt: workspaceInvites.expiresAt, createdAt: workspaceInvites.createdAt })
+        .from(workspaceInvites)
+        .where(and(eq(workspaceInvites.workspaceId, input.workspaceId), isNull(workspaceInvites.acceptedAt), isNull(workspaceInvites.revokedAt), gt(workspaceInvites.expiresAt, new Date())))
+        .orderBy(desc(workspaceInvites.createdAt))
+        .limit(100);
+      return invites;
+    }),
+    revokeInvite: protectedProcedure.input(z.object({ inviteId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const invites = await db.select().from(workspaceInvites).where(eq(workspaceInvites.id, input.inviteId)).limit(1);
+      const invite = invites[0];
+      if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      await assertWorkspaceMember(invite.workspaceId, ctx.user.id);
+      if (invite.acceptedAt || invite.revokedAt || invite.expiresAt.getTime() <= Date.now()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only active pending invitations can be revoked." });
+      }
+      await db.update(workspaceInvites).set({ revokedAt: new Date() }).where(eq(workspaceInvites.id, invite.id));
+      return { revokedInviteId: invite.id };
+    }),
+    sendInviteEmail: protectedProcedure.input(z.object({ inviteId: z.number().int().positive(), appOrigin: z.string().url().max(500) })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const invites = await db.select().from(workspaceInvites).where(eq(workspaceInvites.id, input.inviteId)).limit(1);
+      const invite = invites[0];
+      if (!invite) throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      await assertWorkspaceMember(invite.workspaceId, ctx.user.id);
+      if (!invite.recipientEmail || invite.acceptedAt || invite.revokedAt || invite.expiresAt.getTime() <= Date.now()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only active invitations with a recipient email can be delivered." });
+      }
+      const workspacesForInvite = await db.select().from(workspaces).where(eq(workspaces.id, invite.workspaceId)).limit(1);
+      const workspaceForInvite = workspacesForInvite[0];
+      if (!workspaceForInvite) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+      const appOrigin = new URL(input.appOrigin);
+      if (appOrigin.protocol !== "https:" && appOrigin.protocol !== "http:") throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation link requires a valid application URL." });
+      const emailId = await sendWorkspaceInvitationEmail({ recipientEmail: invite.recipientEmail, workspaceName: workspaceForInvite.name, inviteUrl: `${appOrigin.origin}/?invite=${invite.token}`, expiresAt: invite.expiresAt });
+      return { inviteId: invite.id, emailId };
     }),
     acceptInvite: protectedProcedure.input(z.object({ token: z.string().length(32) })).mutation(async ({ ctx, input }) => {
       const db = await requireDb();
       const invite = await db.select().from(workspaceInvites).where(eq(workspaceInvites.token, input.token)).limit(1);
       const record = invite[0];
-      if (!record || record.acceptedAt || record.expiresAt.getTime() < Date.now()) {
+      if (!record || record.acceptedAt || record.revokedAt || record.expiresAt.getTime() < Date.now()) {
         throw new TRPCError({ code: "NOT_FOUND", message: "This invitation is unavailable or has expired." });
+      }
+      if (record.recipientEmail && record.recipientEmail.toLowerCase() !== (ctx.user.email || "").toLowerCase()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This invitation was issued for a different email address." });
       }
       await db.transaction(async (tx) => {
         await tx.insert(workspaceMembers).values({ workspaceId: record.workspaceId, userId: ctx.user.id }).onDuplicateKeyUpdate({ set: { joinedAt: new Date() } });

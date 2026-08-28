@@ -45,3 +45,8 @@
 - [x] Surface a clear, accessible teammate-invitation entry point in the workspace interface.
 - [x] Validate the invitation control with automated tests, type checking, and a production build.
 - [x] Save the invitation-discoverability checkpoint.
+- [x] Add protected pending-invite listing and manual revocation to the workspace invitation API.
+- [x] Create an accessible pending-invites management section with revoke controls.
+- [x] Configure secure direct email delivery for generated invitation links and connect it to the invite dialog.
+- [x] Add workflow tests and validate the production build for invitation management.
+- [x] Save the invitation-management checkpoint.
