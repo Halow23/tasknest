@@ -303,9 +303,61 @@ export const activityEvents = mysqlTable(
   ],
 );
 
+/** Workspace-level labels/tags for cross-project categorization. */
+export const labels = mysqlTable(
+  "labels",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workspaceId: int("workspaceId").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 40 }).notNull(),
+    color: varchar("color", { length: 7 }).notNull().default("#38A9F2"),
+    createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("label_workspace_name_unique").on(table.workspaceId, table.name)],
+);
+
+/** Join table attaching labels to tasks. */
+export const taskLabels = mysqlTable(
+  "task_labels",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    taskId: int("taskId").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    labelId: int("labelId").notNull().references(() => labels.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("task_label_unique").on(table.taskId, table.labelId),
+    index("task_label_label_idx").on(table.labelId),
+  ],
+);
+
+export const notificationType = ["assigned", "commented", "mentioned"] as const;
+
+/** In-app notifications for a user. Notifications are never deleted; readAt marks them seen. */
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    type: mysqlEnum("type", notificationType).notNull(),
+    actorId: int("actorId").notNull().references(() => users.id, { onDelete: "restrict" }),
+    taskId: int("taskId").references(() => tasks.id, { onDelete: "cascade" }),
+    workspaceId: int("workspaceId").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("notification_user_read_idx").on(table.userId, table.readAt),
+    index("notification_created_idx").on(table.createdAt),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type TaskStatus = (typeof taskStatus)[number];
 export type TaskPriority = (typeof taskPriority)[number];
 export type ProjectFieldType = (typeof projectFieldType)[number];
+export type NotificationType = (typeof notificationType)[number];
 export type DeniedSignInReason = (typeof deniedSignInReason)[number];
