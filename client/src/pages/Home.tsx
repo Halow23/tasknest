@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { trpc } from '@/lib/trpc';
+import { useWorkspaceEvents } from '@/hooks/useWorkspaceEvents';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { startLogin } from '@/const';
 import { getKanbanNextTaskId } from '@/lib/kanbanNavigation';
@@ -41,6 +42,7 @@ export default function Home() {
   const analyticsQuery = trpc.tasknest.analytics.project.useQuery({ projectId: activeProjectId ?? 1 }, { enabled: activeProjectId !== null });
   const fieldsQuery = trpc.tasknest.field.list.useQuery({ projectId: activeProjectId ?? 1 }, { enabled: activeProjectId !== null });
   const myTasksQuery = trpc.tasknest.task.myTasks.useQuery(undefined, { enabled: isAuthenticated });
+  useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null });
   const tasks = (tasksQuery.data?.tasks ?? []) as TaskSummary[];
   const taskLabelMap = useMemo(() => { const map = new Map<number, WorkspaceLabel[]>(); (tasksQuery.data?.labels ?? []).forEach(label => map.set(label.taskId, [...(map.get(label.taskId) ?? []), { id: label.id, name: label.name, color: label.color }])); return map; }, [tasksQuery.data?.labels]);
   const projectFieldsList = (fieldsQuery.data ?? []).map(field => ({ ...field, options: Array.isArray(field.options) ? (field.options as string[]) : null }));

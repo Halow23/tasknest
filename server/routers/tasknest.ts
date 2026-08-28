@@ -32,6 +32,7 @@ import {
   requireDb,
 } from "../db";
 import { sendWorkspaceInvitationEmail } from "../invitationEmail";
+import { publishWorkspaceEvent } from "../events";
 import { storagePut } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -190,6 +191,7 @@ async function logActivity(input: {
     taskId: input.taskId ?? null,
     metadata: input.metadata ?? null,
   });
+  publishWorkspaceEvent({ workspaceId: input.workspaceId, type: input.type, projectId: input.projectId ?? null, taskId: input.taskId ?? null, actorId: input.actorId, at: new Date().toISOString() });
 }
 
 async function getTaskDetail(taskId: number) {
