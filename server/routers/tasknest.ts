@@ -347,10 +347,28 @@ export const tasknestRouter = router({
     }),
   }),
   task: router({
-    list: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
+    list: protectedProcedure.input(projectInput.extend({
+      assigneeId: z.number().int().positive().nullable().optional(),
+      priority: taskPrioritySchema.optional(),
+      labelId: z.number().int().positive().nullable().optional(),
+      dueBucket: z.enum(["overdue", "today", "week", "none"]).optional(),
+    })).query(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       const db = await requireDb();
-      const taskRows = await db.select().from(tasks).where(eq(tasks.projectId, project.id)).orderBy(asc(tasks.status), asc(tasks.sortOrder), desc(tasks.updatedAt));
+      const conditions = [eq(tasks.projectId, project.id)];
+      if (input.priority) conditions.push(eq(tasks.priority, input.priority));
+      if (input.assigneeId) conditions.push(inArray(tasks.id, db.select({ id: taskAssignees.taskId }).from(taskAssignees).where(eq(taskAssignees.userId, input.assigneeId))));
+      if (input.labelId) conditions.push(inArray(tasks.id, db.select({ id: taskLabels.taskId }).from(taskLabels).where(eq(taskLabels.labelId, input.labelId))));
+      if (input.dueBucket) {
+        const now = new Date();
+        const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+        if (input.dueBucket === "overdue") conditions.push(sql`${tasks.completedAt} is null and ${tasks.dueAt} is not null and ${tasks.dueAt} < now()`);
+        if (input.dueBucket === "today") conditions.push(sql`${tasks.dueAt} >= now() and ${tasks.dueAt} < ${endOfToday}`);
+        if (input.dueBucket === "week") conditions.push(sql`${tasks.dueAt} >= now() and ${tasks.dueAt} < ${endOfWeek}`);
+        if (input.dueBucket === "none") conditions.push(isNull(tasks.dueAt));
+      }
+      const taskRows = await db.select().from(tasks).where(and(...conditions)).orderBy(asc(tasks.status), asc(tasks.sortOrder), desc(tasks.updatedAt));
       const ids = taskRows.map((task) => task.id);
       if (ids.length === 0) return { tasks: taskRows, assignees: [], labels: [], project };
       const [assignees, taskLabelRows] = await Promise.all([
@@ -366,6 +384,26 @@ export const tasknestRouter = router({
           .where(inArray(taskLabels.taskId, ids)),
       ]);
       return { tasks: taskRows, assignees, labels: taskLabelRows, project };
+    }),
+    search: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(30).default(15) })).query(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      const pattern = `%${input.query.replace(/[%_]/g, match => `\\${match}`)}%`;
+      const matchingIds = db
+        .select({ id: comments.taskId })
+        .from(comments)
+        .where(sql`${comments.body} like ${pattern}`);
+      const rows = await db
+        .select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, dueAt: tasks.dueAt, projectId: projects.id, projectName: projects.name, projectColor: projects.color })
+        .from(tasks)
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(and(
+          eq(projects.workspaceId, input.workspaceId),
+          sql`(${tasks.title} like ${pattern} or ${tasks.description} like ${pattern} or ${tasks.id} in ${matchingIds})`,
+        ))
+        .orderBy(desc(tasks.updatedAt))
+        .limit(input.limit);
+      return rows;
     }),
     detail: protectedProcedure.input(taskInput).query(async ({ ctx, input }) => {
       await assertTaskMember(input.taskId, ctx.user.id);
