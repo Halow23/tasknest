@@ -13,3 +13,10 @@
 - [x] Add or update automated tests for any changed behavior.
 - [x] Verify the updated interface and save a published checkpoint.
 - [x] Save the verified Foundation University email-domain restriction as a published checkpoint.
+- [x] Inspect the current access-policy implementation, database schema, and admin navigation points.
+- [x] Add database tables and a migration for configurable approved domains, individual external-email allowlist entries, and denied sign-in audit events.
+- [x] Enforce access from the configured domains or individual allowlist, and record denied sign-ins without recording session credentials.
+- [x] Add protected administrator procedures to manage approved domains, allowlisted external emails, and view denial audit events.
+- [x] Build an administrator settings page for access-policy management and denied sign-in audit review.
+- [x] Add automated regression coverage, verify the UI, and publish the completed access-management update.
+- [ ] Save the verified managed-domain, external allowlist, and denied-sign-in audit feature as a published checkpoint.

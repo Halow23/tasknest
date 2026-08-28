@@ -1,7 +1,6 @@
 import { COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE, decodeOAuthState } from "@shared/const";
 import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
-import { isAllowedTaskNestEmail } from "../accessPolicy";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
@@ -42,8 +41,18 @@ export function registerOAuthRoutes(app: Express) {
       }
 
       // Do not provision a TaskNest user or issue a session until the identity
-      // provider confirms an approved Foundation University email address.
-      if (!isAllowedTaskNestEmail(userInfo.email)) {
+      // provider confirms an approved domain or individually allowlisted email.
+      const accessDecision = await db.getTaskNestEmailAccess(userInfo.email);
+      if (!accessDecision.allowed) {
+        try {
+          await db.recordDeniedSignIn({
+            attemptedEmail: userInfo.email,
+            loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+            reason: accessDecision.reason ?? "email_not_approved",
+          });
+        } catch (auditError) {
+          console.error("[OAuth] Failed to record denied sign-in", auditError);
+        }
         const cookieOptions = getSessionCookieOptions(req);
         res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
         res.redirect(302, "/?access=denied");
