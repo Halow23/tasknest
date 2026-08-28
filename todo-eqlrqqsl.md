@@ -20,3 +20,10 @@
 - [x] Build an administrator settings page for access-policy management and denied sign-in audit review.
 - [x] Add automated regression coverage, verify the UI, and publish the completed access-management update.
 - [x] Save the verified managed-domain, external allowlist, and denied-sign-in audit feature as a published checkpoint.
+- [x] Inspect current audit logging, access settings, and owner-alert wiring for the requested enhancements.
+- [x] Extend the schema and migration with optional external collaborator expiry and repeat-denial alert state.
+- [x] Enforce collaborator expiry, add server-side audit filtering/export data, and create repeat-denial alerts without logging credentials.
+- [x] Add controls for collaborator expiry, audit search and CSV export, and repeated-denial alert review in the administrator settings page.
+- [x] Add an administrator-only CSV-ready denied-sign-in export procedure with audit filtering.
+- [ ] Add regression coverage, verify the enhanced admin experience, and publish the update.
+- [x] Add a focused regression test proving that expired external collaborator entries no longer authorize access.

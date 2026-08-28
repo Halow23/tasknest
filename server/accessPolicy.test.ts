@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTaskNestEmailAccessDecision, isAllowedTaskNestEmail } from "./accessPolicy";
+import { getTaskNestEmailAccessDecision, isAllowedTaskNestEmail, isExternalEmailAccessActive } from "./accessPolicy";
 
 const rules = {
   allowedDomains: ["foundationu.com"],
@@ -27,5 +27,12 @@ describe("managed TaskNest email access policy", () => {
     });
     expect(getTaskNestEmailAccessDecision("student@foundationu.com.example", rules).allowed).toBe(false);
     expect(getTaskNestEmailAccessDecision(null, rules)).toMatchObject({ allowed: false, reason: "missing_email" });
+  });
+
+  it("treats an expired external collaborator entry as inactive", () => {
+    const now = new Date("2026-08-28T00:00:00.000Z");
+    expect(isExternalEmailAccessActive(new Date("2026-08-27T23:59:59.000Z"), now)).toBe(false);
+    expect(isExternalEmailAccessActive(new Date("2026-08-28T00:00:01.000Z"), now)).toBe(true);
+    expect(isExternalEmailAccessActive(null, now)).toBe(true);
   });
 });

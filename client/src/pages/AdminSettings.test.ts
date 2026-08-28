@@ -12,5 +12,9 @@ describe("AdminSettings", () => {
     expect(source).toContain("trpc.accessManagement.addDomain");
     expect(source).toContain("trpc.accessManagement.addExternalEmail");
     expect(source).toContain("trpc.accessManagement.deniedSignIns");
+    expect(source).toContain("trpc.accessManagement.exportDeniedSignIns");
+    expect(source).toContain("Export CSV");
+    expect(source).toContain("Access expires");
+    expect(source).toContain("Repeated denied sign-ins need attention");
   });
 });

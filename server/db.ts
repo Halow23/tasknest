@@ -1,8 +1,9 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   accessAllowedDomains,
   allowedExternalEmails,
+  deniedSignInAlerts,
   deniedSignInEvents,
   projects,
   tasks,
@@ -12,7 +13,8 @@ import {
   type DeniedSignInReason,
   type InsertUser,
 } from "../drizzle/schema";
-import { getTaskNestEmailAccessDecision, normalizeTaskNestEmail } from "./accessPolicy";
+import { REPEAT_DENIAL_WINDOW_MS, isRepeatDenialAlertEligible } from "./accessAlerts";
+import { getTaskNestEmailAccessDecision, isExternalEmailAccessActive, normalizeTaskNestEmail } from "./accessPolicy";
 import { ENV } from "./_core/env";
 
 let dbInstance: ReturnType<typeof drizzle> | null = null;
@@ -130,9 +132,12 @@ export async function getManagedAccessRules() {
 
 export async function getTaskNestEmailAccess(email: string | null | undefined) {
   const { domains, emails } = await getManagedAccessRules();
+  const now = Date.now();
   return getTaskNestEmailAccessDecision(email, {
     allowedDomains: domains.map((record) => record.domain),
-    allowedEmails: emails.map((record) => record.email),
+    allowedEmails: emails
+      .filter((record) => isExternalEmailAccessActive(record.expiresAt, new Date(now)))
+      .map((record) => record.email),
   });
 }
 
@@ -149,11 +154,16 @@ export async function removeAllowedDomain(id: number) {
   await db.delete(accessAllowedDomains).where(eq(accessAllowedDomains.id, id));
 }
 
-export async function addAllowedExternalEmail(input: { email: string; note?: string | null; createdById: number }) {
+export async function addAllowedExternalEmail(input: { email: string; note?: string | null; expiresAt?: Date | null; createdById: number }) {
   const db = await requireDb();
   const email = normalizeTaskNestEmail(input.email);
   if (!email) throw new Error("Enter a valid email address.");
-  await db.insert(allowedExternalEmails).values({ email, note: input.note?.trim() || null, createdById: input.createdById });
+  await db.insert(allowedExternalEmails).values({
+    email,
+    note: input.note?.trim() || null,
+    expiresAt: input.expiresAt ?? null,
+    createdById: input.createdById,
+  });
   const result = await db.select().from(allowedExternalEmails).where(eq(allowedExternalEmails.email, email)).limit(1);
   return result[0];
 }
@@ -161,6 +171,17 @@ export async function addAllowedExternalEmail(input: { email: string; note?: str
 export async function removeAllowedExternalEmail(id: number) {
   const db = await requireDb();
   await db.delete(allowedExternalEmails).where(eq(allowedExternalEmails.id, id));
+}
+
+export async function setAllowedExternalEmailExpiry(input: { id: number; expiresAt: Date | null }) {
+  const db = await requireDb();
+  await db.update(allowedExternalEmails).set({ expiresAt: input.expiresAt }).where(eq(allowedExternalEmails.id, input.id));
+  const result = await db.select().from(allowedExternalEmails).where(eq(allowedExternalEmails.id, input.id)).limit(1);
+  return result[0];
+}
+
+function escapeLikeTerm(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
 }
 
 export async function recordDeniedSignIn(input: {
@@ -177,9 +198,45 @@ export async function recordDeniedSignIn(input: {
     loginMethod: input.loginMethod ?? null,
     reason: input.reason,
   });
+
+  if (!emailDomain) return null;
+
+  const now = new Date();
+  const windowStartedAt = new Date(now.getTime() - REPEAT_DENIAL_WINDOW_MS);
+  await db.insert(deniedSignInAlerts).values({
+    emailDomain,
+    recentAttemptCount: 1,
+    windowStartedAt: now,
+    lastDeniedAt: now,
+  }).onDuplicateKeyUpdate({
+    set: {
+      recentAttemptCount: sql<number>`IF(${deniedSignInAlerts.windowStartedAt} >= ${windowStartedAt}, ${deniedSignInAlerts.recentAttemptCount} + 1, 1)`,
+      windowStartedAt: sql<Date>`IF(${deniedSignInAlerts.windowStartedAt} >= ${windowStartedAt}, ${deniedSignInAlerts.windowStartedAt}, ${now})`,
+      lastDeniedAt: now,
+    },
+  });
+  const alert = (await db.select().from(deniedSignInAlerts).where(eq(deniedSignInAlerts.emailDomain, emailDomain)).limit(1))[0];
+  if (!alert || !isRepeatDenialAlertEligible({ recentAttemptCount: alert.recentAttemptCount, lastNotifiedAt: alert.lastNotifiedAt, now })) return null;
+
+  await db.update(deniedSignInAlerts).set({ lastNotifiedAt: now }).where(eq(deniedSignInAlerts.id, alert.id));
+  return { ...alert, lastNotifiedAt: now };
 }
 
-export async function listDeniedSignInEvents(limit = 100) {
+export async function listDeniedSignInEvents(input: { limit?: number; search?: string } = {}) {
   const db = await requireDb();
-  return db.select().from(deniedSignInEvents).orderBy(desc(deniedSignInEvents.createdAt)).limit(limit);
+  const limit = input.limit ?? 100;
+  const search = input.search?.trim();
+  if (!search) return db.select().from(deniedSignInEvents).orderBy(desc(deniedSignInEvents.createdAt)).limit(limit);
+  const term = `%${escapeLikeTerm(search)}%`;
+  return db
+    .select()
+    .from(deniedSignInEvents)
+    .where(or(like(deniedSignInEvents.attemptedEmail, term), like(deniedSignInEvents.emailDomain, term)))
+    .orderBy(desc(deniedSignInEvents.createdAt))
+    .limit(limit);
+}
+
+export async function listDeniedSignInAlerts(limit = 20) {
+  const db = await requireDb();
+  return db.select().from(deniedSignInAlerts).orderBy(desc(deniedSignInAlerts.lastDeniedAt)).limit(limit);
 }

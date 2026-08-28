@@ -3,6 +3,7 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { notifyOwner } from "./notification";
 import { sdk } from "./sdk";
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -45,11 +46,17 @@ export function registerOAuthRoutes(app: Express) {
       const accessDecision = await db.getTaskNestEmailAccess(userInfo.email);
       if (!accessDecision.allowed) {
         try {
-          await db.recordDeniedSignIn({
+          const alert = await db.recordDeniedSignIn({
             attemptedEmail: userInfo.email,
             loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
             reason: accessDecision.reason ?? "email_not_approved",
           });
+          if (alert) {
+            await notifyOwner({
+              title: "TaskNest access alert: repeated denied sign-ins",
+              content: `${alert.recentAttemptCount} denied sign-ins from @${alert.emailDomain} were recorded within 15 minutes. Review the Access settings audit for details.`,
+            });
+          }
         } catch (auditError) {
           console.error("[OAuth] Failed to record denied sign-in", auditError);
         }

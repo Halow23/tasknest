@@ -19,6 +19,10 @@ export function normalizeTaskNestEmail(email: string | null | undefined): string
   return localPart && domain && remainingParts.length === 0 ? normalized : null;
 }
 
+export function isExternalEmailAccessActive(expiresAt: Date | null, now = new Date()): boolean {
+  return !expiresAt || new Date(expiresAt).getTime() > now.getTime();
+}
+
 export function getTaskNestEmailAccessDecision(
   email: string | null | undefined,
   rules: EmailAccessRules,

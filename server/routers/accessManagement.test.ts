@@ -4,14 +4,17 @@ import type { TrpcContext } from "../_core/context";
 const getManagedAccessRules = vi.fn();
 const addAllowedDomain = vi.fn();
 const listDeniedSignInEvents = vi.fn();
+const listDeniedSignInAlerts = vi.fn();
 
 vi.mock("../db", () => ({
   getManagedAccessRules,
   addAllowedDomain,
   addAllowedExternalEmail: vi.fn(),
   listDeniedSignInEvents,
+  listDeniedSignInAlerts,
   removeAllowedDomain: vi.fn(),
   removeAllowedExternalEmail: vi.fn(),
+  setAllowedExternalEmailExpiry: vi.fn(),
 }));
 
 const { accessManagementRouter } = await import("./accessManagement");
@@ -42,7 +45,7 @@ describe("access management router", () => {
     vi.clearAllMocks();
     getManagedAccessRules.mockResolvedValue({
       domains: [{ id: 1, domain: "foundationu.com" }],
-      emails: [{ id: 2, email: "advisor@external.org", note: "Program advisor" }],
+      emails: [{ id: 2, email: "advisor@external.org", note: "Program advisor", expiresAt: null }],
     });
   });
 
@@ -64,7 +67,15 @@ describe("access management router", () => {
     listDeniedSignInEvents.mockResolvedValue([{ id: 9, attemptedEmail: "guest@gmail.com", reason: "email_not_approved" }]);
     const caller = accessManagementRouter.createCaller(createContext());
 
-    await expect(caller.deniedSignIns({ limit: 25 })).resolves.toHaveLength(1);
-    expect(listDeniedSignInEvents).toHaveBeenCalledWith(25);
+    await expect(caller.deniedSignIns({ limit: 25, search: "gmail" })).resolves.toHaveLength(1);
+    expect(listDeniedSignInEvents).toHaveBeenCalledWith({ limit: 25, search: "gmail" });
+  });
+
+  it("provides a filtered, CSV-ready audit export to administrators only", async () => {
+    listDeniedSignInEvents.mockResolvedValue([{ id: 12, attemptedEmail: "guest@example.org", emailDomain: "example.org" }]);
+    const caller = accessManagementRouter.createCaller(createContext());
+
+    await expect(caller.exportDeniedSignIns({ search: "example.org" })).resolves.toHaveLength(1);
+    expect(listDeniedSignInEvents).toHaveBeenCalledWith({ limit: 500, search: "example.org" });
   });
 });

@@ -1,13 +1,15 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getTaskNestEmailAccessDecision } from "../accessPolicy";
+import { getTaskNestEmailAccessDecision, isExternalEmailAccessActive } from "../accessPolicy";
 import {
   addAllowedDomain,
   addAllowedExternalEmail,
   getManagedAccessRules,
+  listDeniedSignInAlerts,
   listDeniedSignInEvents,
   removeAllowedDomain,
   removeAllowedExternalEmail,
+  setAllowedExternalEmailExpiry,
 } from "../db";
 import { adminProcedure, router } from "../_core/trpc";
 
@@ -24,7 +26,7 @@ const emailSchema = z.string().trim().toLowerCase().email().max(320);
 function currentRules(records: Awaited<ReturnType<typeof getManagedAccessRules>>) {
   return {
     allowedDomains: records.domains.map((record) => record.domain),
-    allowedEmails: records.emails.map((record) => record.email),
+    allowedEmails: records.emails.filter((record) => isExternalEmailAccessActive(record.expiresAt)).map((record) => record.email),
   };
 }
 
@@ -57,13 +59,29 @@ export const accessManagementRouter = router({
     return { deletedId: target.id };
   }),
   addExternalEmail: adminProcedure
-    .input(z.object({ email: emailSchema, note: z.string().trim().max(240).optional() }))
+    .input(z.object({
+      email: emailSchema,
+      note: z.string().trim().max(240).optional(),
+      expiresAt: z.date().nullable().optional().refine((value) => !value || value.getTime() > Date.now(), "Choose a future expiration date."),
+    }))
     .mutation(async ({ ctx, input }) => {
       const existing = await getManagedAccessRules();
       if (existing.emails.some((record) => record.email === input.email)) {
         throw new TRPCError({ code: "CONFLICT", message: "That email is already allowlisted." });
       }
-      return addAllowedExternalEmail({ email: input.email, note: input.note, createdById: ctx.user.id });
+      return addAllowedExternalEmail({ email: input.email, note: input.note, expiresAt: input.expiresAt, createdById: ctx.user.id });
+    }),
+  setExternalExpiry: adminProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      expiresAt: z.date().nullable().refine((value) => !value || value.getTime() > Date.now(), "Choose a future expiration date."),
+    }))
+    .mutation(async ({ input }) => {
+      const existing = await getManagedAccessRules();
+      if (!existing.emails.some((record) => record.id === input.id)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Allowlisted email not found." });
+      }
+      return setAllowedExternalEmailExpiry(input);
     }),
   removeExternalEmail: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     const existing = await getManagedAccessRules();
@@ -85,6 +103,12 @@ export const accessManagementRouter = router({
     return { deletedId: target.id };
   }),
   deniedSignIns: adminProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional())
-    .query(({ input }) => listDeniedSignInEvents(input?.limit ?? 50)),
+    .input(z.object({ limit: z.number().int().min(1).max(500).default(50), search: z.string().trim().max(320).optional() }).optional())
+    .query(({ input }) => listDeniedSignInEvents({ limit: input?.limit ?? 50, search: input?.search })),
+  exportDeniedSignIns: adminProcedure
+    .input(z.object({ search: z.string().trim().max(320).optional() }).optional())
+    .query(({ input }) => listDeniedSignInEvents({ limit: 500, search: input?.search })),
+  deniedSignInAlerts: adminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
+    .query(({ input }) => listDeniedSignInAlerts(input?.limit ?? 20)),
 });

@@ -88,10 +88,14 @@ export const allowedExternalEmails = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     email: varchar("email", { length: 320 }).notNull(),
     note: varchar("note", { length: 240 }),
+    expiresAt: timestamp("expiresAt"),
     createdById: int("createdById").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("allowed_external_email_unique").on(table.email)],
+  (table) => [
+    uniqueIndex("allowed_external_email_unique").on(table.email),
+    index("allowed_external_email_expiry_idx").on(table.expiresAt),
+  ],
 );
 
 export const deniedSignInReason = ["missing_email", "email_not_approved"] as const;
@@ -108,6 +112,25 @@ export const deniedSignInEvents = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [index("denied_sign_in_created_idx").on(table.createdAt)],
+);
+
+/** Active repeat-denial indicators. The owner receives a throttled alert; all admins can review these in-app. */
+export const deniedSignInAlerts = mysqlTable(
+  "denied_sign_in_alerts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    emailDomain: varchar("emailDomain", { length: 255 }).notNull(),
+    recentAttemptCount: int("recentAttemptCount").notNull().default(0),
+    windowStartedAt: timestamp("windowStartedAt").notNull(),
+    lastDeniedAt: timestamp("lastDeniedAt").notNull(),
+    lastNotifiedAt: timestamp("lastNotifiedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("denied_sign_in_alert_domain_unique").on(table.emailDomain),
+    index("denied_sign_in_alert_recent_idx").on(table.lastDeniedAt),
+  ],
 );
 
 export const projects = mysqlTable(
