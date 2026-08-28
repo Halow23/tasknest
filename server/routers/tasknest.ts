@@ -5,11 +5,13 @@ import {
   activityEvents,
   attachments,
   comments,
+  labels,
   projectFields,
   projects,
   subtasks,
   taskAssignees,
   taskFieldValues,
+  taskLabels,
   tasks,
   users,
   workspaceInvites,
@@ -36,6 +38,7 @@ const taskPrioritySchema = z.enum(["high", "medium", "low"]);
 const projectFieldTypeSchema = z.enum(["text", "select", "date"]);
 const fieldOptionsSchema = z.array(z.string().trim().min(1).max(80)).min(1).max(20);
 const fieldValueInputSchema = z.object({ fieldId: z.number().int().positive(), value: z.string().trim().max(2000) });
+const labelColorSchema = z.string().regex(/^#[A-Fa-f0-9]{6}$/);
 
 const workspaceInput = z.object({ workspaceId: z.number().int().positive() });
 const workspaceInviteInput = workspaceInput.extend({ recipientEmail: z.string().trim().email().max(320) });
@@ -86,6 +89,25 @@ async function writeFieldValues(taskId: number, rows: { fieldId: number; value: 
   await db.insert(taskFieldValues).values(rows.map((row) => ({ taskId, fieldId: row.fieldId, value: row.value }))).onDuplicateKeyUpdate({ set: { value: sql`values(value)` } });
 }
 
+/**
+ * Validates label ids against the workspace of the task's project.
+ * Returns the validated label ids in input order (deduplicated).
+ */
+async function resolveLabelIds(workspaceId: number, labelIds?: number[]) {
+  const unique = Array.from(new Set(labelIds ?? []));
+  if (unique.length === 0) return [];
+  const db = await requireDb();
+  const rows = await db.select({ id: labels.id }).from(labels).where(and(eq(labels.workspaceId, workspaceId), inArray(labels.id, unique)));
+  if (rows.length !== unique.length) throw new TRPCError({ code: "FORBIDDEN", message: "Labels must belong to the task's workspace." });
+  return unique;
+}
+
+async function writeTaskLabels(taskId: number, labelIds: number[]) {
+  if (labelIds.length === 0) return;
+  const db = await requireDb();
+  await db.insert(taskLabels).values(labelIds.map((labelId) => ({ taskId, labelId }))).onDuplicateKeyUpdate({ set: { labelId: sql`values(labelId)` } });
+}
+
 async function assertWorkspaceMember(workspaceId: number, userId: number) {
   const member = await getWorkspaceMember(workspaceId, userId);
   if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this workspace." });
@@ -109,6 +131,15 @@ async function assertTaskMember(taskId: number, userId: number) {
   if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
   await assertWorkspaceMember(result.project.workspaceId, userId);
   return result;
+}
+
+async function assertLabelMember(labelId: number, userId: number) {
+  const db = await requireDb();
+  const rows = await db.select().from(labels).where(eq(labels.id, labelId)).limit(1);
+  const label = rows[0];
+  if (!label) throw new TRPCError({ code: "NOT_FOUND", message: "Label not found." });
+  await assertWorkspaceMember(label.workspaceId, userId);
+  return label;
 }
 
 async function assertFieldMember(fieldId: number, userId: number) {
@@ -149,7 +180,7 @@ async function getTaskDetail(taskId: number) {
   const taskResult = await getTaskProject(taskId);
   if (!taskResult) return null;
 
-  const [assignees, taskSubtasks, taskComments, taskAttachments, activity, fieldValues] = await Promise.all([
+  const [assignees, taskSubtasks, taskComments, taskAttachments, activity, fieldValues, taskLabelRows] = await Promise.all([
     db
       .select({ id: users.id, name: users.name, email: users.email })
       .from(taskAssignees)
@@ -175,18 +206,23 @@ async function getTaskDetail(taskId: number) {
       .from(taskFieldValues)
       .innerJoin(projectFields, eq(taskFieldValues.fieldId, projectFields.id))
       .where(eq(taskFieldValues.taskId, taskId)),
+    db
+      .select({ id: labels.id, name: labels.name, color: labels.color })
+      .from(taskLabels)
+      .innerJoin(labels, eq(taskLabels.labelId, labels.id))
+      .where(eq(taskLabels.taskId, taskId)),
   ]);
 
-  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues };
+  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues, labels: taskLabelRows };
 }
 
 export const tasknestRouter = router({
   workspace: router({
     current: protectedProcedure.query(async ({ ctx }) => {
       const workspace = await getFirstWorkspaceForUser(ctx.user.id);
-      if (!workspace) return { workspace: null, members: [], projects: [] };
+      if (!workspace) return { workspace: null, members: [], projects: [], labels: [] };
       const db = await requireDb();
-      const [members, availableProjects] = await Promise.all([
+      const [members, availableProjects, workspaceLabels] = await Promise.all([
         db
           .select({ id: users.id, name: users.name, email: users.email, joinedAt: workspaceMembers.joinedAt })
           .from(workspaceMembers)
@@ -194,8 +230,9 @@ export const tasknestRouter = router({
           .where(eq(workspaceMembers.workspaceId, workspace.id))
           .orderBy(asc(workspaceMembers.joinedAt)),
         db.select().from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, false))).orderBy(asc(projects.createdAt)),
+        db.select({ id: labels.id, name: labels.name, color: labels.color }).from(labels).where(eq(labels.workspaceId, workspace.id)).orderBy(asc(labels.name)),
       ]);
-      return { workspace, members, projects: availableProjects };
+      return { workspace, members, projects: availableProjects, labels: workspaceLabels };
     }),
     create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(120) })).mutation(async ({ ctx, input }) => {
       const existing = await getFirstWorkspaceForUser(ctx.user.id);
@@ -315,13 +352,20 @@ export const tasknestRouter = router({
       const db = await requireDb();
       const taskRows = await db.select().from(tasks).where(eq(tasks.projectId, project.id)).orderBy(asc(tasks.status), asc(tasks.sortOrder), desc(tasks.updatedAt));
       const ids = taskRows.map((task) => task.id);
-      if (ids.length === 0) return { tasks: [], assignees: [], project };
-      const assignees = await db
-        .select({ taskId: taskAssignees.taskId, id: users.id, name: users.name, email: users.email })
-        .from(taskAssignees)
-        .innerJoin(users, eq(taskAssignees.userId, users.id))
-        .where(inArray(taskAssignees.taskId, ids));
-      return { tasks: taskRows, assignees, project };
+      if (ids.length === 0) return { tasks: taskRows, assignees: [], labels: [], project };
+      const [assignees, taskLabelRows] = await Promise.all([
+        db
+          .select({ taskId: taskAssignees.taskId, id: users.id, name: users.name, email: users.email })
+          .from(taskAssignees)
+          .innerJoin(users, eq(taskAssignees.userId, users.id))
+          .where(inArray(taskAssignees.taskId, ids)),
+        db
+          .select({ taskId: taskLabels.taskId, id: labels.id, name: labels.name, color: labels.color })
+          .from(taskLabels)
+          .innerJoin(labels, eq(taskLabels.labelId, labels.id))
+          .where(inArray(taskLabels.taskId, ids)),
+      ]);
+      return { tasks: taskRows, assignees, labels: taskLabelRows, project };
     }),
     detail: protectedProcedure.input(taskInput).query(async ({ ctx, input }) => {
       await assertTaskMember(input.taskId, ctx.user.id);
@@ -329,7 +373,7 @@ export const tasknestRouter = router({
       if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       return detail;
     }),
-    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional() })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       if (input.assigneeIds?.length) {
         const db = await requireDb();
@@ -337,17 +381,20 @@ export const tasknestRouter = router({
         if (members.length !== new Set(input.assigneeIds).size) throw new TRPCError({ code: "FORBIDDEN", message: "Tasks can only be assigned to workspace members." });
       }
       const fieldRows = await resolveFieldValues({ projectId: project.id, fieldValues: input.fieldValues });
+      const labelIdRows = await resolveLabelIds(project.workspaceId, input.labelIds);
       const db = await requireDb();
       const created = await db.insert(tasks).values({ projectId: input.projectId, title: input.title, description: input.description || null, priority: input.priority, dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
       const taskId = Number(created[0].insertId);
       if (input.assigneeIds?.length) await db.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId, userId })));
       await writeFieldValues(taskId, fieldRows);
+      await writeTaskLabels(taskId, labelIdRows);
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
       return { taskId, projectId: project.id };
     }),
-    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional() })).mutation(async ({ ctx, input }) => {
+    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const fieldRows = input.fieldValues !== undefined ? await resolveFieldValues({ projectId: result.project.id, fieldValues: input.fieldValues }) : null;
+      const labelIdRows = input.labelIds !== undefined ? await resolveLabelIds(result.project.workspaceId, input.labelIds) : null;
       const db = await requireDb();
       if (input.assigneeIds) {
         const members = await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, result.project.workspaceId), inArray(workspaceMembers.userId, input.assigneeIds)));
@@ -361,6 +408,12 @@ export const tasknestRouter = router({
         await db.transaction(async (tx) => {
           await tx.delete(taskFieldValues).where(eq(taskFieldValues.taskId, input.taskId));
           if (fieldRows.length) await tx.insert(taskFieldValues).values(fieldRows.map((row) => ({ taskId: input.taskId, fieldId: row.fieldId, value: row.value })));
+        });
+      }
+      if (labelIdRows !== null) {
+        await db.transaction(async (tx) => {
+          await tx.delete(taskLabels).where(eq(taskLabels.taskId, input.taskId));
+          if (labelIdRows.length) await tx.insert(taskLabels).values(labelIdRows.map((labelId) => ({ taskId: input.taskId, labelId })));
         });
       }
       const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}) };
@@ -384,6 +437,38 @@ export const tasknestRouter = router({
       await db.update(tasks).set({ status: input.status as TaskStatus, sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000), completedAt }).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
       return { taskId: input.taskId, projectId: result.project.id, status: input.status };
+    }),
+  }),
+  label: router({
+    list: protectedProcedure.input(workspaceInput).query(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      return db.select().from(labels).where(eq(labels.workspaceId, input.workspaceId)).orderBy(asc(labels.name));
+    }),
+    create: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), name: z.string().trim().min(1).max(40), color: labelColorSchema.default("#38A9F2") })).mutation(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      const existing = await db.select({ id: labels.id }).from(labels).where(and(eq(labels.workspaceId, input.workspaceId), eq(labels.name, input.name))).limit(1);
+      if (existing.length > 0) throw new TRPCError({ code: "CONFLICT", message: "A label with this name already exists." });
+      const created = await db.insert(labels).values({ workspaceId: input.workspaceId, name: input.name, color: input.color, createdById: ctx.user.id });
+      return { labelId: Number(created[0].insertId), name: input.name, color: input.color };
+    }),
+    update: protectedProcedure.input(z.object({ labelId: z.number().int().positive(), name: z.string().trim().min(1).max(40).optional(), color: labelColorSchema.optional() })).mutation(async ({ ctx, input }) => {
+      const label = await assertLabelMember(input.labelId, ctx.user.id);
+      const db = await requireDb();
+      const updateSet = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.color !== undefined ? { color: input.color } : {}),
+      };
+      if (Object.keys(updateSet).length === 0) return { labelId: label.id };
+      await db.update(labels).set(updateSet).where(eq(labels.id, input.labelId));
+      return { labelId: label.id };
+    }),
+    delete: protectedProcedure.input(z.object({ labelId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const label = await assertLabelMember(input.labelId, ctx.user.id);
+      const db = await requireDb();
+      await db.delete(labels).where(eq(labels.id, input.labelId));
+      return { deletedLabelId: label.id };
     }),
   }),
   field: router({
