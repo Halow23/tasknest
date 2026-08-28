@@ -58,9 +58,11 @@ export const workspaceInvites = mysqlTable(
     workspaceId: int("workspaceId").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     token: varchar("token", { length: 64 }).notNull(),
     createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    recipientEmail: varchar("recipientEmail", { length: 320 }),
     expiresAt: timestamp("expiresAt").notNull(),
     acceptedAt: timestamp("acceptedAt"),
     acceptedById: int("acceptedById").references(() => users.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revokedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   (table) => [

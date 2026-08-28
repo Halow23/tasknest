@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   selectRows: [] as unknown[],
   createdWorkspace: { id: 4, name: "Operations", ownerId: 1, createdAt: new Date(), updatedAt: new Date() },
   storagePut: vi.fn().mockResolvedValue({ key: "tasknest/test.txt", url: "/manus-storage/tasknest/test.txt" }),
+  sendWorkspaceInvitationEmail: vi.fn().mockResolvedValue("email_123"),
 }));
 
 function operation<T>(result: T) {
@@ -49,6 +50,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./storage", () => ({ storagePut: state.storagePut }));
+vi.mock("./invitationEmail", () => ({ sendWorkspaceInvitationEmail: state.sendWorkspaceInvitationEmail }));
 
 import { describe, beforeEach, expect, it } from "vitest";
 import { appRouter } from "./routers";
@@ -68,6 +70,7 @@ describe("TaskNest live collaboration workflows", () => {
     state.workspaceMember = { id: 1 };
     state.selectRows = [];
     state.storagePut.mockClear();
+    state.sendWorkspaceInvitationEmail.mockClear();
     mockDb.insert.mockClear(); mockDb.update.mockClear(); mockDb.select.mockClear(); mockDb.transaction.mockClear();
   });
 
@@ -118,6 +121,23 @@ describe("TaskNest live collaboration workflows", () => {
     state.workspaceMember = undefined;
     const caller = appRouter.createCaller(authedContext());
     await expect(caller.tasknest.project.list({ workspaceId: 999 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("creates, lists, revokes, and securely delivers recipient-bound invitations", async () => {
+    const expiresAt = new Date(Date.now() + 60_000);
+    const activeInvite = { id: 3, workspaceId: 4, token: "a".repeat(32), recipientEmail: "teammate@example.com", createdById: 1, expiresAt, acceptedAt: null, acceptedById: null, revokedAt: null, createdAt: new Date(), name: "Operations" };
+    state.selectRows = [activeInvite];
+    const caller = appRouter.createCaller(authedContext());
+
+    await expect(caller.tasknest.workspace.createInvite({ workspaceId: 4, recipientEmail: "Teammate@Example.com" })).resolves.toMatchObject({ id: 88, recipientEmail: "teammate@example.com" });
+    await expect(caller.tasknest.workspace.pendingInvites({ workspaceId: 4 })).resolves.toHaveLength(1);
+    await expect(caller.tasknest.workspace.sendInviteEmail({ inviteId: 3, appOrigin: "https://tasknest.example" })).resolves.toEqual({ inviteId: 3, emailId: "email_123" });
+    await expect(caller.tasknest.workspace.revokeInvite({ inviteId: 3 })).resolves.toEqual({ revokedInviteId: 3 });
+    expect(state.sendWorkspaceInvitationEmail).toHaveBeenCalledWith(expect.objectContaining({ recipientEmail: "teammate@example.com", inviteUrl: `https://tasknest.example/?invite=${"a".repeat(32)}` }));
+
+    state.workspaceMember = undefined;
+    await expect(caller.tasknest.workspace.pendingInvites({ workspaceId: 4 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.tasknest.workspace.revokeInvite({ inviteId: 3 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("accepts a valid invitation and rejects oversized attachment input", async () => {
