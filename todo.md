@@ -72,3 +72,5 @@
 - [x] Apply the non-destructive project_fields and task_field_values schema fix.
 - [x] Validate the field workflow tests, type check, and production build.
 - [x] Save the field-list fix checkpoint.
+- [ ] Trace the source of the Amplitude remote-config and HTTP API requests in the TaskNest project and managed shell.
+- [ ] Remove project-controlled Amplitude noise, validate the result, and save a checkpoint.
