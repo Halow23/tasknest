@@ -24,4 +24,3 @@ describe("auth.access", () => {
     await expect(caller.auth.access()).resolves.toEqual({ denied: false });
   });
 });
-

@@ -1,6 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import { COOKIE_NAME } from "@shared/const";
-import { isAllowedTaskNestEmail } from "../accessPolicy";
+import { getTaskNestEmailAccess } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk, type AuthenticatedUser } from "./sdk";
 
@@ -22,11 +22,14 @@ export async function createContext(
 
     // Previously issued sessions must obey the same rule as new OAuth logins.
     // Scheduled service identities do not represent end-user email logins.
-    if (user && !user.isCron && !isAllowedTaskNestEmail(user.email)) {
-      const cookieOptions = getSessionCookieOptions(opts.req);
-      opts.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      user = null;
-      accessDenied = true;
+    if (user && !user.isCron) {
+      const accessDecision = await getTaskNestEmailAccess(user.email);
+      if (!accessDecision.allowed) {
+        const cookieOptions = getSessionCookieOptions(opts.req);
+        opts.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+        user = null;
+        accessDenied = true;
+      }
     }
   } catch (error) {
     // Authentication is optional for public procedures.

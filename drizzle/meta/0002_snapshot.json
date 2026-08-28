@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "8f444cf3-eddf-4628-94c4-25c78c1d70db",
-  "prevId": "1c313009-c17f-4f91-bff4-5cf8fccda386",
+  "id": "65e065eb-47b2-4fef-b6ec-f1535bf9cf15",
+  "prevId": "8f444cf3-eddf-4628-94c4-25c78c1d70db",
   "tables": {
     "access_allowed_domains": {
       "name": "access_allowed_domains",
@@ -1151,6 +1151,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "recipientEmail": {
+          "name": "recipientEmail",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "expiresAt": {
           "name": "expiresAt",
           "type": "timestamp",
@@ -1168,6 +1175,13 @@
         "acceptedById": {
           "name": "acceptedById",
           "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revokedAt": {
+          "name": "revokedAt",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

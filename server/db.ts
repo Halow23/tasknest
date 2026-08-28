@@ -1,13 +1,18 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  accessAllowedDomains,
+  allowedExternalEmails,
+  deniedSignInEvents,
   projects,
   tasks,
   users,
   workspaceMembers,
   workspaces,
+  type DeniedSignInReason,
   type InsertUser,
 } from "../drizzle/schema";
+import { getTaskNestEmailAccessDecision, normalizeTaskNestEmail } from "./accessPolicy";
 import { ENV } from "./_core/env";
 
 let dbInstance: ReturnType<typeof drizzle> | null = null;
@@ -112,4 +117,69 @@ export async function getTaskProject(taskId: number) {
     .where(eq(tasks.id, taskId))
     .limit(1);
   return result[0];
+}
+
+export async function getManagedAccessRules() {
+  const db = await requireDb();
+  const [domains, emails] = await Promise.all([
+    db.select().from(accessAllowedDomains).orderBy(asc(accessAllowedDomains.domain)),
+    db.select().from(allowedExternalEmails).orderBy(asc(allowedExternalEmails.email)),
+  ]);
+  return { domains, emails };
+}
+
+export async function getTaskNestEmailAccess(email: string | null | undefined) {
+  const { domains, emails } = await getManagedAccessRules();
+  return getTaskNestEmailAccessDecision(email, {
+    allowedDomains: domains.map((record) => record.domain),
+    allowedEmails: emails.map((record) => record.email),
+  });
+}
+
+export async function addAllowedDomain(input: { domain: string; createdById: number }) {
+  const db = await requireDb();
+  const domain = input.domain.trim().toLowerCase();
+  await db.insert(accessAllowedDomains).values({ domain, createdById: input.createdById });
+  const result = await db.select().from(accessAllowedDomains).where(eq(accessAllowedDomains.domain, domain)).limit(1);
+  return result[0];
+}
+
+export async function removeAllowedDomain(id: number) {
+  const db = await requireDb();
+  await db.delete(accessAllowedDomains).where(eq(accessAllowedDomains.id, id));
+}
+
+export async function addAllowedExternalEmail(input: { email: string; note?: string | null; createdById: number }) {
+  const db = await requireDb();
+  const email = normalizeTaskNestEmail(input.email);
+  if (!email) throw new Error("Enter a valid email address.");
+  await db.insert(allowedExternalEmails).values({ email, note: input.note?.trim() || null, createdById: input.createdById });
+  const result = await db.select().from(allowedExternalEmails).where(eq(allowedExternalEmails.email, email)).limit(1);
+  return result[0];
+}
+
+export async function removeAllowedExternalEmail(id: number) {
+  const db = await requireDb();
+  await db.delete(allowedExternalEmails).where(eq(allowedExternalEmails.id, id));
+}
+
+export async function recordDeniedSignIn(input: {
+  attemptedEmail: string | null | undefined;
+  loginMethod?: string | null;
+  reason: DeniedSignInReason;
+}) {
+  const db = await requireDb();
+  const attemptedEmail = normalizeTaskNestEmail(input.attemptedEmail);
+  const emailDomain = attemptedEmail?.slice(attemptedEmail.lastIndexOf("@") + 1) ?? null;
+  await db.insert(deniedSignInEvents).values({
+    attemptedEmail,
+    emailDomain,
+    loginMethod: input.loginMethod ?? null,
+    reason: input.reason,
+  });
+}
+
+export async function listDeniedSignInEvents(limit = 100) {
+  const db = await requireDb();
+  return db.select().from(deniedSignInEvents).orderBy(desc(deniedSignInEvents.createdAt)).limit(limit);
 }

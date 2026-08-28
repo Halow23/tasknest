@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link2, Mail, RefreshCw, Trash2, UsersRound } from "lucide-react";
+import { Link2, Mail, RefreshCw, Settings2, Trash2, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ function formatExpiry(value: Date) {
 }
 
 export function WorkspaceInviteControl() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
@@ -90,6 +90,7 @@ export function WorkspaceInviteControl() {
   };
 
   return <>
+    {user?.role === "admin" && <a href="/admin/access" className="fixed bottom-18 right-4 z-40 inline-flex h-10 items-center rounded-full border border-[#D5E7F0] bg-white px-3.5 text-[10px] font-extrabold text-[#2E789F] shadow-[0_8px_20px_rgba(28,77,105,0.13)] transition-colors hover:bg-[#F1F8FC] sm:bottom-20 sm:right-6"><Settings2 className="mr-1.5 h-3.5 w-3.5" />Access settings</a>}
     <Button onClick={() => setOpen(true)} className="fixed bottom-4 right-4 z-40 h-11 rounded-full bg-[#247EAF] px-4 text-[11px] font-extrabold shadow-[0_10px_25px_rgba(36,126,175,0.28)] hover:bg-[#176A98] sm:bottom-6 sm:right-6" aria-label="Invite teammates to this workspace">
       <UsersRound className="mr-1.5 h-4 w-4" />Invite teammates
     </Button>

@@ -71,6 +71,47 @@ export const workspaceInvites = mysqlTable(
   ],
 );
 
+/** Institution-wide domains that are allowed to create a TaskNest session. */
+export const accessAllowedDomains = mysqlTable(
+  "access_allowed_domains",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    domain: varchar("domain", { length: 255 }).notNull(),
+    createdById: int("createdById").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("access_allowed_domain_unique").on(table.domain)],
+);
+
+/** Individually approved email addresses for specific external collaborators. */
+export const allowedExternalEmails = mysqlTable(
+  "allowed_external_emails",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    email: varchar("email", { length: 320 }).notNull(),
+    note: varchar("note", { length: 240 }),
+    createdById: int("createdById").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("allowed_external_email_unique").on(table.email)],
+);
+
+export const deniedSignInReason = ["missing_email", "email_not_approved"] as const;
+
+/** Login-denial metadata. Session cookies, OAuth codes, and IP addresses are never stored here. */
+export const deniedSignInEvents = mysqlTable(
+  "denied_sign_in_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    attemptedEmail: varchar("attemptedEmail", { length: 320 }),
+    emailDomain: varchar("emailDomain", { length: 255 }),
+    loginMethod: varchar("loginMethod", { length: 64 }),
+    reason: mysqlEnum("reason", deniedSignInReason).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("denied_sign_in_created_idx").on(table.createdAt)],
+);
+
 export const projects = mysqlTable(
   "projects",
   {
@@ -203,3 +244,4 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type TaskStatus = (typeof taskStatus)[number];
 export type TaskPriority = (typeof taskPriority)[number];
+export type DeniedSignInReason = (typeof deniedSignInReason)[number];
