@@ -78,3 +78,5 @@
 - [x] Save a checkpoint preserving the Amplitude diagnosis and project state.
 - [x] Inspect migration 0005 and confirm its production migration state.
 - [x] Apply migration 0005 safely, verify labels/notifications/My Tasks schema, and save a checkpoint.
+- [x] Inspect and apply production migration 0006 for task dependencies and recurrence rules.
+- [x] Verify dependency and recurrence schema/query paths, run validation, and save a checkpoint.
