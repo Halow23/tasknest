@@ -80,3 +80,5 @@
 - [x] Apply migration 0005 safely, verify labels/notifications/My Tasks schema, and save a checkpoint.
 - [x] Inspect and apply production migration 0006 for task dependencies and recurrence rules.
 - [x] Verify dependency and recurrence schema/query paths, run validation, and save a checkpoint.
+- [x] Inspect and apply production migrations 0007 and 0008 for soft deletes, templates, time tracking, and automations.
+- [x] Verify the 0007/0008 schema and affected query paths, run validation, and save a checkpoint.
