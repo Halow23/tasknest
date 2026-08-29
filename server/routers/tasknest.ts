@@ -35,7 +35,7 @@ import {
 } from "../db";
 import { sendWorkspaceInvitationEmail } from "../invitationEmail";
 import { publishWorkspaceEvent } from "../events";
-import { storagePut } from "../storage";
+import { storagePresignPutUrl, storagePut } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
@@ -828,6 +828,20 @@ export const tasknestRouter = router({
     }),
   }),
   attachment: router({
+    presign: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), fileName: z.string().trim().min(1).max(240), contentType: z.string().trim().min(3).max(120), byteSize: z.number().int().min(1).max(50 * 1024 * 1024) })).mutation(async ({ ctx, input }) => {
+      const result = await assertTaskMember(input.taskId, ctx.user.id);
+      const safeFileName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const presigned = await storagePresignPutUrl(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`);
+      return { key: presigned.key, uploadUrl: presigned.uploadUrl, storageUrl: presigned.url };
+    }),
+    register: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), fileName: z.string().trim().min(1).max(240), contentType: z.string().trim().min(3).max(120), byteSize: z.number().int().min(1).max(50 * 1024 * 1024), storageKey: z.string().trim().min(1).max(512) })).mutation(async ({ ctx, input }) => {
+      const result = await assertTaskMember(input.taskId, ctx.user.id);
+      const db = await requireDb();
+      const storageUrl = `/manus-storage/${input.storageKey}`;
+      const created = await db.insert(attachments).values({ taskId: input.taskId, uploadedById: ctx.user.id, fileName: input.fileName, contentType: input.contentType, byteSize: input.byteSize, storageKey: input.storageKey, storageUrl });
+      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
+      return { id: Number(created[0].insertId), key: input.storageKey, url: storageUrl };
+    }),
     upload: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), fileName: z.string().trim().min(1).max(240), contentType: z.string().trim().min(3).max(120), dataBase64: z.string().min(1).max(7_000_000) })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const bytes = Buffer.from(input.dataBase64.replace(/^data:[^,]+,/, ""), "base64");
