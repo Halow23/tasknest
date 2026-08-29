@@ -18,7 +18,7 @@ describe("labels/tags integration", () => {
     const source = await readFile(new URL("../../../server/routers/tasknest.ts", import.meta.url), "utf8");
 
     expect(source).toContain("labels: taskLabelRows");
-    expect(source).toContain("labels: taskLabelRows, openDependencies }");
+    expect(source).toContain("labels: taskLabelRows, openDependencies, timeEntries: timeEntriesRows };");
     expect(source).toContain("workspaceLabels");
   });
 

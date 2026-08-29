@@ -24,7 +24,7 @@ describe("task dependencies", () => {
   it("surfaces blocked counts in task.list and open dependencies in task.detail", async () => {
     const source = await readFile(new URL("../../../server/routers/tasknest.ts", import.meta.url), "utf8");
     expect(source).toContain("blockedByCount: openDependencyCount.get(task.id) ?? 0");
-    expect(source).toContain("openDependencies }");
+    expect(source).toContain("openDependencies, timeEntries: timeEntriesRows };");
   });
 
   it("renders the Blocked by drawer section and card badge", async () => {
