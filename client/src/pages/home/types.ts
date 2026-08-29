@@ -3,7 +3,7 @@ export type Priority = "high" | "medium" | "low";
 export type View = "board" | "calendar" | "analytics" | "mytasks";
 export type CalendarMode = "list" | "month";
 export type Member = { id: number; name: string | null; email: string | null };
-export type TaskSummary = { id: number; title: string; description: string | null; status: Status; priority: Priority; dueAt: Date | null; blockedByCount?: number };
+export type TaskSummary = { id: number; title: string; description: string | null; status: Status; priority: Priority; dueAt: Date | null; blockedByCount?: number; recurrenceRule?: "none" | "daily" | "weekly" | "monthly" };
 
 export const columns: { id: Status; title: string; note: string; color: string }[] = [
   { id: "backlog", title: "Up next", note: "Shape the work", color: "bg-slate-400" },

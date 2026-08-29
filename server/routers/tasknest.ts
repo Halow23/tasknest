@@ -22,6 +22,7 @@ import {
   type NotificationType,
   type ProjectFieldType,
   type TaskPriority,
+  type TaskRecurrenceRule,
   type TaskStatus,
 } from "../../drizzle/schema";
 import {
@@ -40,6 +41,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
 const taskPrioritySchema = z.enum(["high", "medium", "low"]);
 const projectFieldTypeSchema = z.enum(["text", "select", "date"]);
+const taskRecurrenceSchema = z.enum(["none", "daily", "weekly", "monthly"]);
 const fieldOptionsSchema = z.array(z.string().trim().min(1).max(80)).min(1).max(20);
 const fieldValueInputSchema = z.object({ fieldId: z.number().int().positive(), value: z.string().trim().max(2000) });
 const labelColorSchema = z.string().regex(/^#[A-Fa-f0-9]{6}$/);
@@ -155,6 +157,53 @@ async function openDependenciesForTask(taskId: number) {
     .innerJoin(tasks, eq(taskDependencies.dependsOnTaskId, tasks.id))
     .where(and(eq(taskDependencies.taskId, taskId), sql`${tasks.completedAt} is null`))
     .orderBy(asc(taskDependencies.id));
+}
+
+function advanceDueDate(base: Date | null, rule: TaskRecurrenceRule, completedAt: Date) {
+  if (rule === "none") return null;
+  const from = base ?? completedAt;
+  const next = new Date(from);
+  if (rule === "daily") next.setDate(next.getDate() + 1);
+  if (rule === "weekly") next.setDate(next.getDate() + 7);
+  if (rule === "monthly") next.setMonth(next.getMonth() + 1);
+  return next;
+}
+
+/**
+ * When a recurring task is completed, inserts its next instance (fresh backlog item)
+ * copying the work definition: title, description, priority, recurrence, assignees,
+ * labels, custom-field values, and subtasks. Returns the new task id or null.
+ */
+async function spawnRecurringTask(taskId: number, workspaceId: number, completedAt: Date): Promise<number | null> {
+  const db = await requireDb();
+  const rows = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  const source = rows[0];
+  if (!source || source.recurrenceRule === "none") return null;
+  const created = await db.insert(tasks).values({
+    projectId: source.projectId,
+    title: source.title,
+    description: source.description,
+    status: "backlog",
+    priority: source.priority,
+    recurrenceRule: source.recurrenceRule,
+    dueAt: advanceDueDate(source.dueAt, source.recurrenceRule, completedAt),
+    sortOrder: Math.floor(Date.now() / 1000),
+    createdById: source.createdById,
+    completedAt: null,
+  });
+  const nextTaskId = Number(created[0].insertId);
+  const [assigneeRows, labelRows, fieldRows, subtaskRows] = await Promise.all([
+    db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, taskId)),
+    db.select({ labelId: taskLabels.labelId }).from(taskLabels).where(eq(taskLabels.taskId, taskId)),
+    db.select({ fieldId: taskFieldValues.fieldId, value: taskFieldValues.value }).from(taskFieldValues).where(eq(taskFieldValues.taskId, taskId)),
+    db.select({ title: subtasks.title, completed: subtasks.completed, sortOrder: subtasks.sortOrder }).from(subtasks).where(eq(subtasks.taskId, taskId)).orderBy(asc(subtasks.sortOrder)),
+  ]);
+  if (assigneeRows.length) await db.insert(taskAssignees).values(assigneeRows.map(row => ({ taskId: nextTaskId, userId: row.userId })));
+  if (labelRows.length) await db.insert(taskLabels).values(labelRows.map(row => ({ taskId: nextTaskId, labelId: row.labelId })));
+  if (fieldRows.length) await db.insert(taskFieldValues).values(fieldRows.map(row => ({ taskId: nextTaskId, fieldId: row.fieldId, value: row.value })));
+  if (subtaskRows.length) await db.insert(subtasks).values(subtaskRows.map(row => ({ taskId: nextTaskId, title: row.title, completed: false, sortOrder: row.sortOrder })));
+  await logActivity({ workspaceId, projectId: source.projectId, taskId: nextTaskId, actorId: source.createdById, type: "task_created", metadata: { action: "recurrence_spawned", sourceTaskId: taskId, recurrenceRule: source.recurrenceRule } });
+  return nextTaskId;
 }
 
 async function assertWorkspaceMember(workspaceId: number, userId: number) {
@@ -488,7 +537,7 @@ export const tasknestRouter = router({
       if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       return detail;
     }),
-    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
+    create: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), dueAt: z.date().nullable().optional(), recurrenceRule: taskRecurrenceSchema.optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       if (input.assigneeIds?.length) {
         const db = await requireDb();
@@ -498,7 +547,7 @@ export const tasknestRouter = router({
       const fieldRows = await resolveFieldValues({ projectId: project.id, fieldValues: input.fieldValues });
       const labelIdRows = await resolveLabelIds(project.workspaceId, input.labelIds);
       const db = await requireDb();
-      const created = await db.insert(tasks).values({ projectId: input.projectId, title: input.title, description: input.description || null, priority: input.priority, dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
+      const created = await db.insert(tasks).values({ projectId: input.projectId, title: input.title, description: input.description || null, priority: input.priority, recurrenceRule: input.recurrenceRule ?? "none", dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
       const taskId = Number(created[0].insertId);
       if (input.assigneeIds?.length) await db.insert(taskAssignees).values(input.assigneeIds.map((userId) => ({ taskId, userId })));
       await notifyUsers({ workspaceId: project.workspaceId, taskId, actorId: ctx.user.id, type: "assigned", recipientIds: input.assigneeIds ?? [] });
@@ -507,7 +556,7 @@ export const tasknestRouter = router({
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
       return { taskId, projectId: project.id };
     }),
-    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
+    update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), recurrenceRule: taskRecurrenceSchema.optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const fieldRows = input.fieldValues !== undefined ? await resolveFieldValues({ projectId: result.project.id, fieldValues: input.fieldValues }) : null;
       const labelIdRows = input.labelIds !== undefined ? await resolveLabelIds(result.project.workspaceId, input.labelIds) : null;
@@ -538,7 +587,7 @@ export const tasknestRouter = router({
         const freshAssignees = input.assigneeIds.filter(userId => !previous.has(userId));
         await notifyUsers({ workspaceId: result.project.workspaceId, taskId: input.taskId, actorId: ctx.user.id, type: "assigned", recipientIds: freshAssignees });
       }
-      const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}) };
+      const updateSet = { ...(input.title !== undefined ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.priority !== undefined ? { priority: input.priority } : {}), ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}), ...(input.recurrenceRule !== undefined ? { recurrenceRule: input.recurrenceRule } : {}) };
       if (Object.keys(updateSet).length > 0) await db.update(tasks).set(updateSet).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated" });
       return { taskId: input.taskId, projectId: result.project.id };
@@ -564,8 +613,12 @@ export const tasknestRouter = router({
       }
       const completedAt = input.status === "done" ? new Date() : null;
       await db.update(tasks).set({ status: input.status as TaskStatus, sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000), completedAt }).where(eq(tasks.id, input.taskId));
-      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
-      return { taskId: input.taskId, projectId: result.project.id, status: input.status };
+      let spawnedTaskId: number | null = null;
+      if (input.status === "done") {
+        spawnedTaskId = await spawnRecurringTask(input.taskId, result.project.workspaceId, completedAt!);
+      }
+      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status, ...(spawnedTaskId !== null ? { spawnedTaskId } : {}) } });
+      return { taskId: input.taskId, projectId: result.project.id, status: input.status, spawnedTaskId };
     }),
     myTasks: protectedProcedure.query(async ({ ctx }) => {
       const workspace = await getFirstWorkspaceForUser(ctx.user.id);
