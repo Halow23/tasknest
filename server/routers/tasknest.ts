@@ -130,6 +130,36 @@ async function notifyUsers(input: { workspaceId: number; taskId?: number; actorI
 }
 
 /**
+ * Resolves @-mentions in a comment body against workspace members.
+ * Matches a member by full name, first name token, or email local-part,
+ * case-insensitively, when preceded by an @ and not followed by name chars.
+ */
+export function extractMentionedUserIds(body: string, members: { id: number; name: string | null; email: string | null }[]): number[] {
+  const mentioned: number[] = [];
+  for (const member of members) {
+    const candidates = [member.name, member.name?.split(/\s+/)[0], member.email?.split("@")[0]]
+      .filter((value): value is string => Boolean(value && value.length >= 2));
+    const matched = candidates.some(candidate => {
+      const escaped = candidate.replace(/[.*+?^$(){}[\]\\]/g, "\\$&");
+      const pattern = new RegExp("@" + escaped + "(?![A-Za-z0-9._-])", "i");
+      return pattern.test(body);
+    });
+    if (matched) mentioned.push(member.id);
+  }
+  return mentioned;
+}
+
+/**
+ * Returns true when adding taskId -> dependsOnTaskId would create a cycle");
+      ");
+const pattern = new RegExp(`@${escaped}(?![A-Za-z0-9._-])`, "i");
+      return pattern.test(body);
+    });
+    if (matched) mentioned.push(member.id);
+  }
+  return mentioned;
+}
+/**
  * Returns true when adding taskId -> dependsOnTaskId would create a cycle
  * (i.e. taskId already transitively depends on dependsOnTaskId).
  */
@@ -787,10 +817,14 @@ export const tasknestRouter = router({
       const created = await db.insert(comments).values({ taskId: input.taskId, authorId: ctx.user.id, body: input.body });
       const commentId = Number(created[0].insertId);
       const taskAssigneeRows = await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, result.task.id));
-      const recipients = [...taskAssigneeRows.map(row => row.userId), result.task.createdById];
-      await notifyUsers({ workspaceId: result.project.workspaceId, taskId: result.task.id, actorId: ctx.user.id, type: "commented", recipientIds: recipients });
+      const memberRows = await db.select({ id: users.id, name: users.name, email: users.email }).from(workspaceMembers).innerJoin(users, eq(workspaceMembers.userId, users.id)).where(eq(workspaceMembers.workspaceId, result.project.workspaceId));
+      const mentionedUserIds = extractMentionedUserIds(input.body, memberRows);
+      const mentioned = new Set(mentionedUserIds);
+      const commentRecipients = [...taskAssigneeRows.map(row => row.userId), result.task.createdById].filter(userId => !mentioned.has(userId));
+      await notifyUsers({ workspaceId: result.project.workspaceId, taskId: result.task.id, actorId: ctx.user.id, type: "commented", recipientIds: commentRecipients });
+      await notifyUsers({ workspaceId: result.project.workspaceId, taskId: result.task.id, actorId: ctx.user.id, type: "mentioned", recipientIds: mentionedUserIds });
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "comment_added" });
-      return { id: commentId, body: input.body, createdAt: new Date(), authorId: ctx.user.id, authorName: ctx.user.name };
+      return { id: commentId, body: input.body, createdAt: new Date(), authorId: ctx.user.id, authorName: ctx.user.name, mentionedUserIds };
     }),
   }),
   attachment: router({
