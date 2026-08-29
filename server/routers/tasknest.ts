@@ -650,6 +650,23 @@ export const tasknestRouter = router({
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status, ...(spawnedTaskId !== null ? { spawnedTaskId } : {}) } });
       return { taskId: input.taskId, projectId: result.project.id, status: input.status, spawnedTaskId };
     }),
+    reorder: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), status: taskStatusSchema, orderedTaskIds: z.array(z.number().int().positive()).min(1).max(500) })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      const laneRows = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, project.id), eq(tasks.status, input.status)));
+      const laneIds = new Set(laneRows.map(row => row.id));
+      const ordered = input.orderedTaskIds;
+      if (ordered.length !== laneIds.size || ordered.some(id => !laneIds.has(id))) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Reorder must include every task in the lane exactly once." });
+      }
+      await db.transaction(async (tx) => {
+        for (let index = 0; index < ordered.length; index++) {
+          await tx.update(tasks).set({ sortOrder: index * 10 }).where(eq(tasks.id, ordered[index]));
+        }
+      });
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_moved", metadata: { action: "lane_reordered", status: input.status } });
+      return { projectId: project.id, status: input.status };
+    }),
     myTasks: protectedProcedure.query(async ({ ctx }) => {
       const workspace = await getFirstWorkspaceForUser(ctx.user.id);
       if (!workspace) return [];
