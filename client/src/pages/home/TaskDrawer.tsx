@@ -37,9 +37,30 @@ export function TaskDrawer({ taskId, members, fields, labels, projectTasks, onCl
   const [editOpen, setEditOpen] = useState(false); const [deleteOpen, setDeleteOpen] = useState(false); const [comment, setComment] = useState(""); const [subtask, setSubtask] = useState(""); const [confirm, setConfirm] = useState("");
   const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [editLabelIds, setEditLabelIds] = useState<number[]>([]); const [recurrence, setRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none"); const [priority, setPriority] = useState<Priority>("medium"); const [dueDate, setDueDate] = useState(""); const [fieldValues, setFieldValues] = useState<Record<number, string>>({});
   const invalidate = async () => { await Promise.all([utils.tasknest.task.detail.invalidate({ taskId: taskId ?? 1 }), utils.tasknest.task.list.invalidate(), utils.tasknest.analytics.project.invalidate()]); };
-  const commentMutation = trpc.tasknest.comment.create.useMutation({ onSuccess: async () => { setComment(""); await invalidate(); toast.success("Comment shared with your team."); }, onError: error => toast.error(error.message) });
+  const commentMutation = trpc.tasknest.comment.create.useMutation({
+    onMutate: async input => {
+      const detailKey = { taskId: taskId ?? 1 };
+      await utils.tasknest.task.detail.cancel(detailKey);
+      const previousDetail = utils.tasknest.task.detail.getData(detailKey);
+      const optimisticComment = { id: -Date.now(), body: input.body, createdAt: new Date(), authorId: -1, authorName: "You" };
+      utils.tasknest.task.detail.setData(detailKey, existing => existing ? { ...existing, comments: [...existing.comments, optimisticComment] } : existing);
+      return { previousDetail, detailKey };
+    },
+    onSuccess: async () => { setComment(""); await invalidate(); toast.success("Comment shared with your team."); },
+    onError: (error, _input, context) => { if (context?.previousDetail) utils.tasknest.task.detail.setData(context.detailKey, context.previousDetail); toast.error(error.message); },
+  });
   const subtaskMutation = trpc.tasknest.subtask.create.useMutation({ onSuccess: async () => { setSubtask(""); await invalidate(); }, onError: error => toast.error(error.message) });
-  const toggleMutation = trpc.tasknest.subtask.toggle.useMutation({ onSuccess: invalidate, onError: error => toast.error(error.message) });
+  const toggleMutation = trpc.tasknest.subtask.toggle.useMutation({
+    onMutate: async input => {
+      const detailKey = { taskId: taskId ?? 1 };
+      await utils.tasknest.task.detail.cancel(detailKey);
+      const previousDetail = utils.tasknest.task.detail.getData(detailKey);
+      utils.tasknest.task.detail.setData(detailKey, existing => existing ? { ...existing, subtasks: existing.subtasks.map(item => item.id === input.subtaskId ? { ...item, completed: input.completed } : item) } : existing);
+      return { previousDetail, detailKey };
+    },
+    onSuccess: invalidate,
+    onError: (error, _input, context) => { if (context?.previousDetail) utils.tasknest.task.detail.setData(context.detailKey, context.previousDetail); toast.error(error.message); },
+  });
   const moveMutation = trpc.tasknest.task.move.useMutation({ onSuccess: invalidate, onError: error => toast.error(error.message) });
   const updateMutation = trpc.tasknest.task.update.useMutation({ onSuccess: async () => { setEditOpen(false); await invalidate(); toast.success("Task updated."); }, onError: error => toast.error(error.message) });
   const deleteMutation = trpc.tasknest.task.delete.useMutation({ onSuccess: async () => { await utils.tasknest.task.list.invalidate(); await utils.tasknest.analytics.project.invalidate(); toast.success("Task deleted."); onDeleted(); }, onError: error => toast.error(error.message) });

@@ -38,11 +38,12 @@ export default function Home() {
   const [view, setView] = useState<View>("board"); const [activeProjectId, setActiveProjectId] = useState<number | null>(null); const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null); const [focusedTaskId, setFocusedTaskId] = useState<number | null>(null); const [newProjectOpen, setNewProjectOpen] = useState(false); const [newTaskOpen, setNewTaskOpen] = useState(false); const [projectEditOpen, setProjectEditOpen] = useState(false); const [projectDeleteOpen, setProjectDeleteOpen] = useState(false); const [projectName, setProjectName] = useState(""); const [projectDescription, setProjectDescription] = useState(""); const [projectColor, setProjectColor] = useState(projectColors[0]); const [taskTitle, setTaskTitle] = useState(""); const [taskAssigneeId, setTaskAssigneeId] = useState(""); const [projectConfirmation, setProjectConfirmation] = useState(""); const [newTaskFieldValues, setNewTaskFieldValues] = useState<Record<number, string>>({}); const [newTaskLabelIds, setNewTaskLabelIds] = useState<number[]>([]); const [newTaskRecurrence, setNewTaskRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none"); const [searchOpen, setSearchOpen] = useState(false); const [filterAssignee, setFilterAssignee] = useState("any"); const [filterPriority, setFilterPriority] = useState("any"); const [filterLabel, setFilterLabel] = useState("any"); const [filterDue, setFilterDue] = useState("any");
   const workspaceQuery = trpc.tasknest.workspace.current.useQuery(undefined, { enabled: isAuthenticated });
   const workspace = workspaceQuery.data?.workspace; const members = workspaceQuery.data?.members ?? []; const projects = workspaceQuery.data?.projects ?? []; const workspaceLabels = (workspaceQuery.data?.labels ?? []) as WorkspaceLabel[]; const archivedProjects = workspaceQuery.data?.archivedProjects ?? [];
-  const tasksQuery = trpc.tasknest.task.list.useQuery({ projectId: activeProjectId ?? 1, assigneeId: filterAssignee !== "any" ? Number(filterAssignee) : undefined, priority: filterPriority !== "any" ? filterPriority as Priority : undefined, labelId: filterLabel !== "any" ? Number(filterLabel) : undefined, dueBucket: filterDue !== "any" ? filterDue as "overdue" | "today" | "week" | "none" : undefined }, { enabled: activeProjectId !== null });
+  const taskListInput = { projectId: activeProjectId ?? 1, assigneeId: filterAssignee !== "any" ? Number(filterAssignee) : undefined, priority: filterPriority !== "any" ? filterPriority as Priority : undefined, labelId: filterLabel !== "any" ? Number(filterLabel) : undefined, dueBucket: filterDue !== "any" ? filterDue as "overdue" | "today" | "week" | "none" : undefined };
+  const tasksQuery = trpc.tasknest.task.list.useQuery(taskListInput, { enabled: activeProjectId !== null });
   const analyticsQuery = trpc.tasknest.analytics.project.useQuery({ projectId: activeProjectId ?? 1 }, { enabled: activeProjectId !== null });
   const fieldsQuery = trpc.tasknest.field.list.useQuery({ projectId: activeProjectId ?? 1 }, { enabled: activeProjectId !== null });
   const myTasksQuery = trpc.tasknest.task.myTasks.useQuery(undefined, { enabled: isAuthenticated });
-  useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null });
+  useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null, currentUserId: user?.id });
   const tasks = (tasksQuery.data?.tasks ?? []) as TaskSummary[];
   const taskLabelMap = useMemo(() => { const map = new Map<number, WorkspaceLabel[]>(); (tasksQuery.data?.labels ?? []).forEach(label => map.set(label.taskId, [...(map.get(label.taskId) ?? []), { id: label.id, name: label.name, color: label.color }])); return map; }, [tasksQuery.data?.labels]);
   const projectFieldsList = (fieldsQuery.data ?? []).map(field => ({ ...field, options: Array.isArray(field.options) ? (field.options as string[]) : null }));
@@ -55,7 +56,16 @@ export default function Home() {
   const createTask = trpc.tasknest.task.create.useMutation({ onSuccess: async () => { setNewTaskOpen(false); setTaskTitle(""); setTaskAssigneeId(""); setNewTaskFieldValues({}); setNewTaskLabelIds([]); setNewTaskRecurrence("none"); await Promise.all([utils.tasknest.task.list.invalidate(), utils.tasknest.analytics.project.invalidate()]); toast.success("Task added to the live board."); }, onError: error => toast.error(error.message) });
   const archiveProject = trpc.tasknest.project.archive.useMutation({ onSuccess: async () => { setActiveProjectId(null); await utils.tasknest.workspace.current.invalidate(); toast.success("Project archived. Find it under Archived in the sidebar."); }, onError: error => toast.error(error.message) });
   const unarchiveProject = trpc.tasknest.project.unarchive.useMutation({ onSuccess: async () => { await utils.tasknest.workspace.current.invalidate(); toast.success("Project restored to your workspace."); }, onError: error => toast.error(error.message) });
-  const moveTask = trpc.tasknest.task.move.useMutation({ onSuccess: async () => { await Promise.all([utils.tasknest.task.list.invalidate(), utils.tasknest.analytics.project.invalidate()]); toast.success("Task position saved."); }, onError: error => toast.error(error.message) });
+  const moveTask = trpc.tasknest.task.move.useMutation({
+    onMutate: async input => {
+      await utils.tasknest.task.list.cancel();
+      const previousLists = utils.tasknest.task.list.getData(taskListInput);
+      utils.tasknest.task.list.setData(taskListInput, existing => existing ? { ...existing, tasks: existing.tasks.map(task => task.id === input.taskId ? { ...task, status: input.status } : task) } as typeof existing : existing);
+      return { previousLists };
+    },
+    onSuccess: async () => { await Promise.all([utils.tasknest.task.list.invalidate(), utils.tasknest.analytics.project.invalidate()]); toast.success("Task position saved."); },
+    onError: (error, _input, context) => { utils.tasknest.task.list.setData(taskListInput, context?.previousLists); toast.error(error.message); },
+  });
   useEffect(() => { if (projects.length && activeProjectId === null) setActiveProjectId(projects[0].id); }, [projects, activeProjectId]);
   useEffect(() => { if (activeProject && !projectEditOpen) { setProjectName(activeProject.name); setProjectDescription(activeProject.description || ""); setProjectColor(activeProject.color); } }, [activeProject, projectEditOpen]);
   useEffect(() => { if (tasks.length && !tasks.some(task => task.id === focusedTaskId)) setFocusedTaskId(tasks[0].id); }, [tasks, focusedTaskId]);
