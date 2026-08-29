@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 type NotificationRow = {
   id: number;
-  type: "assigned" | "commented" | "mentioned";
+  type: "assigned" | "commented" | "mentioned" | "due_today" | "overdue" | "automation";
   readAt: Date | null;
   createdAt: Date;
   actorName: string | null;
@@ -23,6 +23,9 @@ function messageFor(row: NotificationRow) {
   const task = row.taskTitle ? `“${row.taskTitle}”` : "a task";
   if (row.type === "assigned") return `${actor} assigned you ${task}.`;
   if (row.type === "commented") return `${actor} commented on ${task}.`;
+  if (row.type === "due_today") return `${task} is due today.`;
+  if (row.type === "overdue") return `${task} is overdue.`;
+  if (row.type === "automation") return `${actor} automation updated ${task}.`;
   return `${actor} mentioned you in ${task}.`;
 }
 

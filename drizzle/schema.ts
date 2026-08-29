@@ -169,6 +169,7 @@ export const tasks = mysqlTable(
     sortOrder: int("sortOrder").notNull().default(0),
     createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
     completedAt: timestamp("completedAt"),
+    deletedAt: timestamp("deletedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -351,7 +352,7 @@ export const taskLabels = mysqlTable(
   ],
 );
 
-export const notificationType = ["assigned", "commented", "mentioned"] as const;
+export const notificationType = ["assigned", "commented", "mentioned", "due_today", "overdue", "automation"] as const;
 
 /** In-app notifications for a user. Notifications are never deleted; readAt marks them seen. */
 export const notifications = mysqlTable(
@@ -372,11 +373,71 @@ export const notifications = mysqlTable(
   ],
 );
 
+/** Reusable task blueprints for repeated workflows. Applied copies reset scheduling. */
+export const taskTemplates = mysqlTable(
+  "task_templates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workspaceId: int("workspaceId").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    title: varchar("title", { length: 240 }).notNull(),
+    description: text("description"),
+    priority: mysqlEnum("priority", taskPriority).notNull().default("medium"),
+    recurrenceRule: mysqlEnum("recurrenceRule", taskRecurrenceRule).notNull().default("none"),
+    /** Ordered subtask titles applied when the template is used. */
+    subtaskTitles: json("subtaskTitles"),
+    /** Label ids attached when the template is used. */
+    labelIds: json("labelIds"),
+    createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("task_template_workspace_idx").on(table.workspaceId)],
+);
+
+/** Manual and timer-based work logs against a task. */
+export const timeEntries = mysqlTable(
+  "time_entries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    taskId: int("taskId").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    minutes: int("minutes").notNull(),
+    note: varchar("note", { length: 240 }),
+    loggedAt: timestamp("loggedAt").defaultNow().notNull(),
+  },
+  (table) => [index("time_entry_task_idx").on(table.taskId), index("time_entry_user_idx").on(table.userId)],
+);
+
+export const automationTrigger = ["task_created", "task_completed", "comment_added"] as const;
+export const automationAction = ["assign_user", "set_priority", "move_status", "notify_user"] as const;
+
+/** Rule-based workspace automations evaluated when activity events fire. */
+export const automationRules = mysqlTable(
+  "automation_rules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    workspaceId: int("workspaceId").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    trigger: mysqlEnum("trigger", automationTrigger).notNull(),
+    action: mysqlEnum("action", automationAction).notNull(),
+    /** userId for assign_user/notify_user, an enum value for set_priority/move_status. */
+    actionValue: varchar("actionValue", { length: 240 }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("automation_rule_workspace_idx").on(table.workspaceId, table.trigger)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type TaskStatus = (typeof taskStatus)[number];
 export type TaskPriority = (typeof taskPriority)[number];
 export type ProjectFieldType = (typeof projectFieldType)[number];
 export type NotificationType = (typeof notificationType)[number];
+export type AutomationTrigger = (typeof automationTrigger)[number];
+export type AutomationAction = (typeof automationAction)[number];
 export type TaskRecurrenceRule = (typeof taskRecurrenceRule)[number];
 export type DeniedSignInReason = (typeof deniedSignInReason)[number];

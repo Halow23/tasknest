@@ -50,6 +50,13 @@
       "when": 1787965951030,
       "tag": "0006_legal_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787983792924,
+      "tag": "0007_misty_bloodstorm",
+      "breakpoints": true
     }
   ]
 }
