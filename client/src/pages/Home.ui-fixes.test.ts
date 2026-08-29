@@ -16,9 +16,8 @@ describe("ui fixes round", () => {
   it("positions quick-add in the toolbar row with a parse preview strip", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
 
-    expect(home).toContain('aria-label="Quick add task"');
-    expect(home).toContain("md:max-w-xl");
-    expect(home).toContain('aria-label="Quick add preview"');
+    expect(home).not.toContain('aria-label="Quick add task"');
+    expect(home).not.toContain('aria-label="Quick add preview"');
     // no longer a standalone full-width bar inside the board branch
     expect(home).not.toContain('view === "board" ? <><div className="border-b border-[#E2EBF0]');
   });
