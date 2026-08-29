@@ -98,10 +98,7 @@ export function TaskDrawer({ taskId, members, fields, labels, projectTasks, onCl
 {(task.openDependencies ?? []).map(dependency => <div key={dependency.dependencyId} className="flex items-center gap-2 rounded-xl border border-[#E2EBF0] bg-white p-3"><Lock className="h-3.5 w-3.5 shrink-0 text-[#A36A00]" /><span className="min-w-0 flex-1 truncate text-[11px] font-extrabold text-[#395269]">{dependency.title}</span><button type="button" disabled={removeDependency.isPending} onClick={() => removeDependency.mutate({ dependencyId: dependency.dependencyId })} className="shrink-0 rounded-md p-1 text-[#7B8F9C] hover:bg-[#FFF0EE] hover:text-[#D44A3F]" aria-label={`Remove dependency ${dependency.title}`}><X className="h-3 w-3" /></button></div>)}
 </div>
 <div className="mt-2 flex items-center gap-2">
-<select value={dependencySelect} onChange={event => setDependencySelect(event.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[11px]" aria-label="Choose a prerequisite task">
-<option value="">Link a prerequisite task…</option>
-{projectTasks.filter(candidate => candidate.id !== task.id && !(task.openDependencies ?? []).some(dependency => dependency.id === candidate.id) && candidate.status !== "done").map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.title}</option>)}
-</select>
+<Select value={dependencySelect} onValueChange={setDependencySelect}><SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 text-[11px]" aria-label="Choose a prerequisite task"><SelectValue placeholder="Link a prerequisite task…" /></SelectTrigger><SelectContent>{projectTasks.filter(candidate => candidate.id !== task.id && !(task.openDependencies ?? []).some(dependency => dependency.id === candidate.id) && candidate.status !== "done").map(candidate => <SelectItem key={candidate.id} value={String(candidate.id)}>{candidate.title}</SelectItem>)}</SelectContent></Select>
 <Button size="sm" disabled={!dependencySelect || addDependency.isPending} onClick={() => addDependency.mutate({ taskId: task.id, dependsOnTaskId: Number(dependencySelect) })} className="h-8 shrink-0 bg-[#38A9F2] text-[10px] hover:bg-[#248FCC]">Link</Button>
 </div>
 </section>
