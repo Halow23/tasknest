@@ -144,6 +144,7 @@ export const projects = mysqlTable(
     description: text("description"),
     color: varchar("color", { length: 16 }).notNull().default("#38A9F2"),
     archived: boolean("archived").notNull().default(false),
+    deletedAt: timestamp("deletedAt"),
     createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

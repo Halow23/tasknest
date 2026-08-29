@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   activityEvents,
@@ -185,7 +185,7 @@ async function openDependenciesForTask(taskId: number) {
     .select({ dependencyId: taskDependencies.id, id: tasks.id, title: tasks.title, status: tasks.status })
     .from(taskDependencies)
     .innerJoin(tasks, eq(taskDependencies.dependsOnTaskId, tasks.id))
-    .where(and(eq(taskDependencies.taskId, taskId), sql`${tasks.completedAt} is null`))
+    .where(and(eq(taskDependencies.taskId, taskId), isNull(tasks.deletedAt), sql`${tasks.completedAt} is null`))
     .orderBy(asc(taskDependencies.id));
 }
 
@@ -250,7 +250,7 @@ async function assertProjectMember(projectId: number, userId: number) {
 
 async function getTaskNestProject(projectId: number) {
   const db = await requireDb();
-  const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  const rows = await db.select().from(projects).where(and(eq(projects.id, projectId), isNull(projects.deletedAt))).limit(1);
   return rows[0];
 }
 
@@ -359,9 +359,9 @@ export const tasknestRouter = router({
           .innerJoin(users, eq(workspaceMembers.userId, users.id))
           .where(eq(workspaceMembers.workspaceId, workspace.id))
           .orderBy(asc(workspaceMembers.joinedAt)),
-        db.select().from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, false))).orderBy(asc(projects.createdAt)),
+        db.select().from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, false), isNull(projects.deletedAt))).orderBy(asc(projects.createdAt)),
         db.select({ id: labels.id, name: labels.name, color: labels.color }).from(labels).where(eq(labels.workspaceId, workspace.id)).orderBy(asc(labels.name)),
-        db.select({ id: projects.id, name: projects.name, color: projects.color, archived: projects.archived, createdAt: projects.createdAt }).from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, true))).orderBy(asc(projects.name))
+        db.select({ id: projects.id, name: projects.name, color: projects.color, archived: projects.archived, createdAt: projects.createdAt }).from(projects).where(and(eq(projects.workspaceId, workspace.id), eq(projects.archived, true), isNull(projects.deletedAt))).orderBy(asc(projects.name))
       ]);
       return { workspace, members, projects: availableProjects, labels: workspaceLabels, archivedProjects };
     }),
@@ -473,8 +473,19 @@ export const tasknestRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Enter the exact project name to delete it." });
       }
       const db = await requireDb();
-      await db.delete(projects).where(eq(projects.id, input.projectId));
+      await db.update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, input.projectId));
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_deleted", projectName: project.name } });
       return { deletedProjectId: project.id };
+    }),
+    restore: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
+      const project = rows[0];
+      if (!project || !project.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Deleted project not found." });
+      await assertWorkspaceMember(project.workspaceId, ctx.user.id);
+      await db.update(projects).set({ deletedAt: null }).where(eq(projects.id, input.projectId));
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_restored", projectName: project.name } });
+      return { restoredProjectId: project.id };
     }),
     archive: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
@@ -500,7 +511,7 @@ export const tasknestRouter = router({
     })).query(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       const db = await requireDb();
-      const conditions = [eq(tasks.projectId, project.id)];
+      const conditions = [eq(tasks.projectId, project.id), isNull(tasks.deletedAt)];
       if (input.priority) conditions.push(eq(tasks.priority, input.priority));
       if (input.assigneeId) conditions.push(inArray(tasks.id, db.select({ id: taskAssignees.taskId }).from(taskAssignees).where(eq(taskAssignees.userId, input.assigneeId))));
       if (input.labelId) conditions.push(inArray(tasks.id, db.select({ id: taskLabels.taskId }).from(taskLabels).where(eq(taskLabels.labelId, input.labelId))));
@@ -555,6 +566,7 @@ export const tasknestRouter = router({
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .where(and(
           eq(projects.workspaceId, input.workspaceId),
+          isNull(tasks.deletedAt),
           sql`(${tasks.title} like ${pattern} or ${tasks.description} like ${pattern} or ${tasks.id} in ${matchingIds})`,
         ))
         .orderBy(desc(tasks.updatedAt))
@@ -650,8 +662,21 @@ export const tasknestRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Enter the exact task title to delete it." });
       }
       const db = await requireDb();
-      await db.delete(tasks).where(eq(tasks.id, input.taskId));
+      await db.update(tasks).set({ deletedAt: new Date() }).where(eq(tasks.id, input.taskId));
+      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "task_deleted", title: result.task.title } });
       return { deletedTaskId: input.taskId, projectId: result.project.id };
+    }),
+    restore: protectedProcedure.input(z.object({ taskId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select({ task: tasks, workspaceId: projects.workspaceId, projectId: projects.id })
+        .from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(tasks.id, input.taskId)).limit(1);
+      const row = rows[0];
+      if (!row || !row.task.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Deleted task not found." });
+      await assertWorkspaceMember(row.workspaceId, ctx.user.id);
+      await db.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, input.taskId));
+      await logActivity({ workspaceId: row.workspaceId, projectId: row.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "task_restored" } });
+      return { restoredTaskId: input.taskId, projectId: row.projectId };
     }),
     move: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), status: taskStatusSchema, sortOrder: z.number().int().min(0).max(2_147_483_647).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
@@ -675,7 +700,7 @@ export const tasknestRouter = router({
     reorder: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), status: taskStatusSchema, orderedTaskIds: z.array(z.number().int().positive()).min(1).max(500) })).mutation(async ({ ctx, input }) => {
       const project = await assertProjectMember(input.projectId, ctx.user.id);
       const db = await requireDb();
-      const laneRows = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, project.id), eq(tasks.status, input.status)));
+      const laneRows = await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, project.id), eq(tasks.status, input.status), isNull(tasks.deletedAt)));
       const laneIds = new Set(laneRows.map(row => row.id));
       const ordered = input.orderedTaskIds;
       if (ordered.length !== laneIds.size || ordered.some(id => !laneIds.has(id))) {
@@ -698,7 +723,7 @@ export const tasknestRouter = router({
         .from(taskAssignees)
         .innerJoin(tasks, eq(taskAssignees.taskId, tasks.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
-        .where(and(eq(taskAssignees.userId, ctx.user.id), sql`${tasks.completedAt} is null`, eq(projects.workspaceId, workspace.id), eq(projects.archived, false)))
+        .where(and(eq(taskAssignees.userId, ctx.user.id), isNull(tasks.deletedAt), sql`${tasks.completedAt} is null`, eq(projects.workspaceId, workspace.id), eq(projects.archived, false)))
         .orderBy(sql`${tasks.dueAt} is null`, asc(tasks.dueAt));
     }),
   }),
@@ -733,6 +758,36 @@ export const tasknestRouter = router({
       await db.delete(taskDependencies).where(eq(taskDependencies.id, input.dependencyId));
       await logActivity({ workspaceId: row.workspaceId, projectId: row.projectId, taskId: row.dependency.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "dependency_removed" } });
       return { deletedDependencyId: input.dependencyId };
+    }),
+  }),
+  trash: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const workspace = await getFirstWorkspaceForUser(ctx.user.id);
+      if (!workspace) return { tasks: [], projects: [] };
+      const db = await requireDb();
+      const [deletedTasks, deletedProjects] = await Promise.all([
+        db.select({ id: tasks.id, title: tasks.title, deletedAt: tasks.deletedAt, projectName: projects.name }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).where(and(eq(projects.workspaceId, workspace.id), isNotNull(tasks.deletedAt))).orderBy(desc(tasks.deletedAt)).limit(100),
+        db.select({ id: projects.id, name: projects.name, color: projects.color, deletedAt: projects.deletedAt }).from(projects).where(and(eq(projects.workspaceId, workspace.id), isNotNull(projects.deletedAt))).orderBy(desc(projects.deletedAt)).limit(100),
+      ]);
+      return { tasks: deletedTasks, projects: deletedProjects };
+    }),
+    purgeTask: protectedProcedure.input(z.object({ taskId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select({ taskId: tasks.id, workspaceId: projects.workspaceId }).from(tasks).innerJoin(projects, eq(tasks.projectId, projects.id)).where(and(eq(tasks.id, input.taskId), isNotNull(tasks.deletedAt))).limit(1);
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deleted task not found." });
+      await assertWorkspaceMember(row.workspaceId, ctx.user.id);
+      await db.delete(tasks).where(eq(tasks.id, input.taskId));
+      return { purgedTaskId: input.taskId };
+    }),
+    purgeProject: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select({ id: projects.id, workspaceId: projects.workspaceId }).from(projects).where(and(eq(projects.id, input.projectId), isNotNull(projects.deletedAt))).limit(1);
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Deleted project not found." });
+      await assertWorkspaceMember(row.workspaceId, ctx.user.id);
+      await db.delete(projects).where(eq(projects.id, input.projectId));
+      return { purgedProjectId: input.projectId };
     }),
   }),
   label: router({
@@ -897,7 +952,7 @@ export const tasknestRouter = router({
     project: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
       await assertProjectMember(input.projectId, ctx.user.id);
       const db = await requireDb();
-      const rows = await db.select({ status: tasks.status, dueAt: tasks.dueAt, completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.projectId, input.projectId));
+      const rows = await db.select({ status: tasks.status, dueAt: tasks.dueAt, completedAt: tasks.completedAt }).from(tasks).where(and(eq(tasks.projectId, input.projectId), isNull(tasks.deletedAt)));
       const today = new Date();
       const upcoming = new Date(today);
       upcoming.setDate(today.getDate() + 7);

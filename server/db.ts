@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   accessAllowedDomains,
@@ -116,7 +116,7 @@ export async function getTaskProject(taskId: number) {
     .select({ task: tasks, project: projects })
     .from(tasks)
     .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)))
     .limit(1);
   return result[0];
 }

@@ -63,7 +63,8 @@ export function TaskDrawer({ taskId, members, fields, labels, projectTasks, onCl
   });
   const moveMutation = trpc.tasknest.task.move.useMutation({ onSuccess: invalidate, onError: error => toast.error(error.message) });
   const updateMutation = trpc.tasknest.task.update.useMutation({ onSuccess: async () => { setEditOpen(false); await invalidate(); toast.success("Task updated."); }, onError: error => toast.error(error.message) });
-  const deleteMutation = trpc.tasknest.task.delete.useMutation({ onSuccess: async () => { await utils.tasknest.task.list.invalidate(); await utils.tasknest.analytics.project.invalidate(); toast.success("Task deleted."); onDeleted(); }, onError: error => toast.error(error.message) });
+  const restoreMutation = trpc.tasknest.task.restore.useMutation({ onSuccess: async () => { await Promise.all([utils.tasknest.task.list.invalidate(), utils.tasknest.trash.list.invalidate()]); toast.success("Task restored."); }, onError: error => toast.error(error.message) });
+  const deleteMutation = trpc.tasknest.task.delete.useMutation({ onSuccess: async (result) => { await utils.tasknest.task.list.invalidate(); await utils.tasknest.analytics.project.invalidate(); utils.tasknest.trash.list.invalidate(); toast.success("Task deleted.", { action: { label: "Undo", onClick: () => restoreMutation.mutate({ taskId: result.deletedTaskId }) } }); onDeleted(); }, onError: error => toast.error(error.message) });
   const dependenciesQuery = trpc.tasknest.dependency.list.useQuery({ taskId: taskId ?? 1 }, { enabled: taskId !== null });
   const [dependencySelect, setDependencySelect] = useState("");
   const addDependency = trpc.tasknest.dependency.create.useMutation({ onSuccess: async () => { setDependencySelect(""); await invalidate(); toast.success("Dependency linked."); }, onError: error => toast.error(error.message) });

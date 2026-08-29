@@ -125,7 +125,7 @@ describe("TaskNest live collaboration workflows", () => {
     await expect(caller.tasknest.task.delete({ taskId: 88, confirmation: "Live task" })).resolves.toEqual({ deletedTaskId: 88, projectId: 10 });
     state.workspaceMember = undefined;
     await expect(caller.tasknest.task.delete({ taskId: 88, confirmation: "Live task" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(mockDb.delete).toHaveBeenCalledTimes(2);
+    expect(mockDb.update).toHaveBeenCalled();
   });
 
   it("blocks a member from reading another workspace's projects", async () => {
