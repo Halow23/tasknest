@@ -9,7 +9,8 @@ describe("notifications", () => {
     expect(source).toContain("input.recipientIds.filter(id => id && id !== input.actorId)");
     expect(source).toContain('type: "assigned", recipientIds: input.assigneeIds ?? []');
     expect(source).toContain("const freshAssignees = input.assigneeIds.filter(userId => !previous.has(userId))");
-    expect(source).toContain('type: "commented", recipientIds: recipients');
+    expect(source).toContain('type: "commented", recipientIds: commentRecipients');
+    expect(source).toContain('type: "mentioned", recipientIds: mentionedUserIds');
     expect(source).toContain("Notification failures must not fail the triggering mutation.");
   });
 
