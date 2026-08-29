@@ -43,6 +43,13 @@
       "when": 1787928774235,
       "tag": "0005_ambitious_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787965951030,
+      "tag": "0006_legal_sunfire",
+      "breakpoints": true
     }
   ]
 }

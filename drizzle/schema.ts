@@ -152,6 +152,7 @@ export const projects = mysqlTable(
 );
 
 export const taskStatus = ["backlog", "progress", "review", "done"] as const;
+export const taskRecurrenceRule = ["none", "daily", "weekly", "monthly"] as const;
 export const taskPriority = ["high", "medium", "low"] as const;
 
 export const tasks = mysqlTable(
@@ -163,6 +164,7 @@ export const tasks = mysqlTable(
     description: text("description"),
     status: mysqlEnum("status", taskStatus).notNull().default("backlog"),
     priority: mysqlEnum("priority", taskPriority).notNull().default("medium"),
+    recurrenceRule: mysqlEnum("recurrenceRule", taskRecurrenceRule).notNull().default("none"),
     dueAt: timestamp("dueAt"),
     sortOrder: int("sortOrder").notNull().default(0),
     createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
@@ -191,6 +193,22 @@ export const taskAssignees = mysqlTable(
 );
 
 /** Per-project custom field definitions for tasks. */
+/** Prerequisite links between tasks in the same project: dependsOnTaskId must reach done before taskId can. */
+export const taskDependencies = mysqlTable(
+  "task_dependencies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    taskId: int("taskId").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    dependsOnTaskId: int("dependsOnTaskId").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    createdById: int("createdById").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("task_dependency_unique").on(table.taskId, table.dependsOnTaskId),
+    index("task_dependency_depends_idx").on(table.dependsOnTaskId),
+  ],
+);
+
 export const projectFieldType = ["text", "select", "date"] as const;
 
 export const projectFields = mysqlTable(
@@ -360,4 +378,5 @@ export type TaskStatus = (typeof taskStatus)[number];
 export type TaskPriority = (typeof taskPriority)[number];
 export type ProjectFieldType = (typeof projectFieldType)[number];
 export type NotificationType = (typeof notificationType)[number];
+export type TaskRecurrenceRule = (typeof taskRecurrenceRule)[number];
 export type DeniedSignInReason = (typeof deniedSignInReason)[number];
