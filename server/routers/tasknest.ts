@@ -14,6 +14,7 @@ import {
   taskFieldValues,
   taskLabels,
   taskDependencies,
+  taskTemplates,
   tasks,
   users,
   workspaceInvites,
@@ -620,6 +621,24 @@ export const tasknestRouter = router({
       await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
       return { taskId, projectId: project.id };
     }),
+    applyTemplate: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), templateId: z.number().int().positive(), dueAt: z.date().nullable().optional() })).mutation(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      const templateRows = await db.select().from(taskTemplates).where(eq(taskTemplates.id, input.templateId)).limit(1);
+      const template = templateRows[0];
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
+      await assertWorkspaceMember(template.workspaceId, ctx.user.id);
+      if (template.workspaceId !== project.workspaceId) throw new TRPCError({ code: "FORBIDDEN", message: "Template must belong to the task's workspace." });
+      const labelIds = Array.isArray(template.labelIds) ? (template.labelIds as number[]) : [];
+      const validLabels = labelIds.length > 0 ? await db.select({ id: labels.id }).from(labels).where(and(eq(labels.workspaceId, template.workspaceId), inArray(labels.id, labelIds))) : [];
+      const created = await db.insert(tasks).values({ projectId: input.projectId, title: template.title, description: template.description, priority: template.priority, recurrenceRule: template.recurrenceRule, dueAt: input.dueAt ?? null, sortOrder: Math.floor(Date.now() / 1000), createdById: ctx.user.id });
+      const taskId = Number(created[0].insertId);
+      if (validLabels.length > 0) await db.insert(taskLabels).values(validLabels.map(label => ({ taskId, labelId: label.id })));
+      const subtaskTitles = Array.isArray(template.subtaskTitles) ? (template.subtaskTitles as string[]) : [];
+      if (subtaskTitles.length > 0) await db.insert(subtasks).values(subtaskTitles.map((title, index) => ({ taskId, title, sortOrder: index })));
+      await logActivity({ workspaceId: project.workspaceId, projectId: project.id, taskId, actorId: ctx.user.id, type: "task_created", metadata: { title: template.title, action: "applied_template", templateName: template.name } });
+      return { taskId, projectId: project.id };
+    }),
     update: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), description: z.string().trim().max(8000).nullable().optional(), priority: taskPrioritySchema.optional(), dueAt: z.date().nullable().optional(), recurrenceRule: taskRecurrenceSchema.optional(), assigneeIds: z.array(z.number().int().positive()).max(20).optional(), fieldValues: z.array(fieldValueInputSchema).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const fieldRows = input.fieldValues !== undefined ? await resolveFieldValues({ projectId: result.project.id, fieldValues: input.fieldValues }) : null;
@@ -758,6 +777,30 @@ export const tasknestRouter = router({
       await db.delete(taskDependencies).where(eq(taskDependencies.id, input.dependencyId));
       await logActivity({ workspaceId: row.workspaceId, projectId: row.projectId, taskId: row.dependency.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "dependency_removed" } });
       return { deletedDependencyId: input.dependencyId };
+    }),
+  }),
+  template: router({
+    list: protectedProcedure.input(workspaceInput).query(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      return db.select().from(taskTemplates).where(eq(taskTemplates.workspaceId, input.workspaceId)).orderBy(asc(taskTemplates.name));
+    }),
+    create: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), name: z.string().trim().min(1).max(80), title: z.string().trim().min(1).max(240), description: z.string().trim().max(8000).optional(), priority: taskPrioritySchema.default("medium"), recurrenceRule: taskRecurrenceSchema.default("none"), subtaskTitles: z.array(z.string().trim().min(1).max(240)).max(30).optional(), labelIds: z.array(z.number().int().positive()).max(20).optional() })).mutation(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      const duplicate = await db.select({ id: taskTemplates.id }).from(taskTemplates).where(and(eq(taskTemplates.workspaceId, input.workspaceId), eq(taskTemplates.name, input.name))).limit(1);
+      if (duplicate.length > 0) throw new TRPCError({ code: "CONFLICT", message: "A template with this name already exists." });
+      const created = await db.insert(taskTemplates).values({ workspaceId: input.workspaceId, name: input.name, title: input.title, description: input.description || null, priority: input.priority, recurrenceRule: input.recurrenceRule, subtaskTitles: input.subtaskTitles ?? null, labelIds: input.labelIds ?? null, createdById: ctx.user.id });
+      return { templateId: Number(created[0].insertId), name: input.name };
+    }),
+    delete: protectedProcedure.input(z.object({ templateId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select().from(taskTemplates).where(eq(taskTemplates.id, input.templateId)).limit(1);
+      const template = rows[0];
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
+      await assertWorkspaceMember(template.workspaceId, ctx.user.id);
+      await db.delete(taskTemplates).where(eq(taskTemplates.id, input.templateId));
+      return { deletedTemplateId: template.id };
     }),
   }),
   trash: router({
