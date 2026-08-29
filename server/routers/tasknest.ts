@@ -561,6 +561,28 @@ export const tasknestRouter = router({
         .limit(input.limit);
       return rows;
     }),
+    export: protectedProcedure.input(projectInput).query(async ({ ctx, input }) => {
+      const project = await assertProjectMember(input.projectId, ctx.user.id);
+      const db = await requireDb();
+      const rows = await db.select().from(tasks).where(and(eq(tasks.projectId, project.id), isNull(tasks.deletedAt))).orderBy(asc(tasks.status), asc(tasks.sortOrder));
+      const ids = rows.map(task => task.id);
+      const [assigneeRows, labelRows] = ids.length === 0 ? [[], []] : await Promise.all([
+        db.select({ taskId: taskAssignees.taskId, name: users.name, email: users.email }).from(taskAssignees).innerJoin(users, eq(taskAssignees.userId, users.id)).where(inArray(taskAssignees.taskId, ids)),
+        db.select({ taskId: taskLabels.taskId, name: labels.name }).from(taskLabels).innerJoin(labels, eq(taskLabels.labelId, labels.id)).where(inArray(taskLabels.taskId, ids)),
+      ]);
+      const assigneesByTask = new Map<number, string[]>();
+      assigneeRows.forEach(row => assigneesByTask.set(row.taskId, [...(assigneesByTask.get(row.taskId) ?? []), row.name || row.email || "Teammate"]));
+      const labelsByTask = new Map<number, string[]>();
+      labelRows.forEach(row => labelsByTask.set(row.taskId, [...(labelsByTask.get(row.taskId) ?? []), row.name]));
+      return {
+        projectName: project.name,
+        tasks: rows.map(task => ({
+          id: task.id, title: task.title, status: task.status, priority: task.priority, recurrenceRule: task.recurrenceRule,
+          dueAt: task.dueAt, completedAt: task.completedAt, createdAt: task.createdAt,
+          assignees: (assigneesByTask.get(task.id) ?? []).join("; "), labels: (labelsByTask.get(task.id) ?? []).join("; "),
+        })),
+      };
+    }),
     detail: protectedProcedure.input(taskInput).query(async ({ ctx, input }) => {
       await assertTaskMember(input.taskId, ctx.user.id);
       const detail = await getTaskDetail(input.taskId);
