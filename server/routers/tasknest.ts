@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   activityEvents,
   attachments,
+  automationRules,
   comments,
   labels,
   notifications,
@@ -21,6 +22,7 @@ import {
   workspaceInvites,
   workspaceMembers,
   workspaces,
+  type AutomationAction,
   type NotificationType,
   type ProjectFieldType,
   type TaskPriority,
@@ -128,6 +130,48 @@ async function notifyUsers(input: { workspaceId: number; taskId?: number; actorI
     await db.insert(notifications).values(recipientIds.map(userId => ({ userId, type: input.type, actorId: input.actorId, taskId: input.taskId ?? null, workspaceId: input.workspaceId })));
   } catch {
     // Notification failures must not fail the triggering mutation.
+  }
+}
+/**
+ * Runs enabled workspace automations matching the fired event. Skipped for
+ * cron/system actors and for events produced by automations themselves so
+ * rules can never cascade. Failures never fail the triggering mutation.
+ */
+async function runAutomationsForEvent(input: { workspaceId: number; type: (typeof activityEvents.type.enumValues)[number]; actorId: number; taskId?: number | null; metadata?: Record<string, string | number | boolean | null> }) {
+  if (input.actorId === -1 || input.metadata?.source === "automation") return;
+  const trigger = input.type;
+  const automationTriggers = ["task_created", "task_completed", "comment_added"] as const;
+  if (!automationTriggers.some(candidate => candidate === trigger)) return;
+  if (!input.taskId) return;
+  try {
+    const db = await requireDb();
+    const rules = await db.select().from(automationRules).where(and(eq(automationRules.workspaceId, input.workspaceId), eq(automationRules.trigger, trigger as "task_created" | "task_completed" | "comment_added"), eq(automationRules.enabled, true)));
+    const taskRows = await db.select().from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
+    const task = taskRows[0];
+    if (!task || task.deletedAt) return;
+    for (const rule of rules) {
+      if (rule.action === "assign_user") {
+        const userId = Number(rule.actionValue);
+        if (!Number.isInteger(userId) || userId <= 0) continue;
+        const members = await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, userId)));
+        if (members.length === 0) continue;
+        await db.insert(taskAssignees).values({ taskId: task.id, userId }).onDuplicateKeyUpdate({ set: { userId: sql`values(userId)` } });
+      } else if (rule.action === "set_priority") {
+        if (taskPrioritySchema.safeParse(rule.actionValue).success) {
+          await db.update(tasks).set({ priority: rule.actionValue as TaskPriority }).where(eq(tasks.id, task.id));
+        }
+      } else if (rule.action === "move_status") {
+        if (taskStatusSchema.safeParse(rule.actionValue).success) {
+          await db.update(tasks).set({ status: rule.actionValue as TaskStatus }).where(eq(tasks.id, task.id));
+        }
+      } else if (rule.action === "notify_user") {
+        const userId = Number(rule.actionValue);
+        if (!Number.isInteger(userId) || userId <= 0) continue;
+        await notifyUsers({ workspaceId: input.workspaceId, taskId: task.id, actorId: input.actorId, type: "automation", recipientIds: [userId] });
+      }
+    }
+  } catch {
+    // Automation failures must never fail the triggering mutation.
   }
 }
 
@@ -304,6 +348,7 @@ async function logActivity(input: {
     metadata: input.metadata ?? null,
   });
   publishWorkspaceEvent({ workspaceId: input.workspaceId, type: input.type, projectId: input.projectId ?? null, taskId: input.taskId ?? null, actorId: input.actorId, at: new Date().toISOString() });
+  void runAutomationsForEvent({ workspaceId: input.workspaceId, type: input.type, actorId: input.actorId, taskId: input.taskId ?? null, metadata: input.metadata });
 }
 
 async function getTaskDetail(taskId: number) {
@@ -826,6 +871,45 @@ export const tasknestRouter = router({
       await assertWorkspaceMember(row.workspaceId, ctx.user.id);
       await db.delete(timeEntries).where(eq(timeEntries.id, input.entryId));
       return { deletedEntryId: input.entryId };
+    }),
+  }),
+  automation: router({
+    list: protectedProcedure.input(workspaceInput).query(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      return db.select().from(automationRules).where(eq(automationRules.workspaceId, input.workspaceId)).orderBy(asc(automationRules.createdAt));
+    }),
+    create: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), name: z.string().trim().min(1).max(80), trigger: z.enum(["task_created", "task_completed", "comment_added"]), action: z.enum(["assign_user", "set_priority", "move_status", "notify_user"]), actionValue: z.string().trim().min(1).max(240) })).mutation(async ({ ctx, input }) => {
+      await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+      const db = await requireDb();
+      if (input.action === "assign_user" || input.action === "notify_user") {
+        const memberId = Number(input.actionValue);
+        if (!Number.isInteger(memberId) || memberId <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a workspace member for this action." });
+        const members = await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, memberId)));
+        if (members.length === 0) throw new TRPCError({ code: "FORBIDDEN", message: "Automations can only reference workspace members." });
+      } else if (!taskPrioritySchema.safeParse(input.actionValue).success && !taskStatusSchema.safeParse(input.actionValue).success) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a valid priority or status for this action." });
+      }
+      const created = await db.insert(automationRules).values({ workspaceId: input.workspaceId, name: input.name, trigger: input.trigger, action: input.action, actionValue: input.actionValue, createdById: ctx.user.id });
+      return { ruleId: Number(created[0].insertId), name: input.name };
+    }),
+    setEnabled: protectedProcedure.input(z.object({ ruleId: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select().from(automationRules).where(eq(automationRules.id, input.ruleId)).limit(1);
+      const rule = rows[0];
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND", message: "Automation rule not found." });
+      await assertWorkspaceMember(rule.workspaceId, ctx.user.id);
+      await db.update(automationRules).set({ enabled: input.enabled }).where(eq(automationRules.id, input.ruleId));
+      return { ruleId: rule.id, enabled: input.enabled };
+    }),
+    delete: protectedProcedure.input(z.object({ ruleId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select().from(automationRules).where(eq(automationRules.id, input.ruleId)).limit(1);
+      const rule = rows[0];
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND", message: "Automation rule not found." });
+      await assertWorkspaceMember(rule.workspaceId, ctx.user.id);
+      await db.delete(automationRules).where(eq(automationRules.id, input.ruleId));
+      return { deletedRuleId: rule.id };
     }),
   }),
   trash: router({
