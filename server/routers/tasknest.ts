@@ -15,6 +15,7 @@ import {
   taskLabels,
   taskDependencies,
   taskTemplates,
+  timeEntries,
   tasks,
   users,
   workspaceInvites,
@@ -310,7 +311,7 @@ async function getTaskDetail(taskId: number) {
   const taskResult = await getTaskProject(taskId);
   if (!taskResult) return null;
 
-  const [assignees, taskSubtasks, taskComments, taskAttachments, activity, fieldValues, taskLabelRows] = await Promise.all([
+  const [assignees, taskSubtasks, taskComments, taskAttachments, activity, fieldValues, taskLabelRows, timeEntriesRows] = await Promise.all([
     db
       .select({ id: users.id, name: users.name, email: users.email })
       .from(taskAssignees)
@@ -341,10 +342,16 @@ async function getTaskDetail(taskId: number) {
       .from(taskLabels)
       .innerJoin(labels, eq(taskLabels.labelId, labels.id))
       .where(eq(taskLabels.taskId, taskId)),
+    db
+      .select({ id: timeEntries.id, minutes: timeEntries.minutes, note: timeEntries.note, loggedAt: timeEntries.loggedAt, userId: timeEntries.userId, userName: users.name })
+      .from(timeEntries)
+      .innerJoin(users, eq(timeEntries.userId, users.id))
+      .where(eq(timeEntries.taskId, taskId))
+      .orderBy(desc(timeEntries.loggedAt)),
   ]);
 
   const openDependencies = await openDependenciesForTask(taskId);
-  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues, labels: taskLabelRows, openDependencies };
+  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues, labels: taskLabelRows, openDependencies, timeEntries: timeEntriesRows };
 }
 
 export const tasknestRouter = router({
@@ -801,6 +808,24 @@ export const tasknestRouter = router({
       await assertWorkspaceMember(template.workspaceId, ctx.user.id);
       await db.delete(taskTemplates).where(eq(taskTemplates.id, input.templateId));
       return { deletedTemplateId: template.id };
+    }),
+  }),
+  time: router({
+    log: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), minutes: z.number().int().min(1).max(10_080), note: z.string().trim().max(240).optional(), loggedAt: z.date().optional() })).mutation(async ({ ctx, input }) => {
+      const result = await assertTaskMember(input.taskId, ctx.user.id);
+      const db = await requireDb();
+      const created = await db.insert(timeEntries).values({ taskId: input.taskId, userId: ctx.user.id, minutes: input.minutes, note: input.note || null, loggedAt: input.loggedAt ?? new Date() });
+      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "time_logged", minutes: input.minutes } });
+      return { entryId: Number(created[0].insertId), minutes: input.minutes };
+    }),
+    delete: protectedProcedure.input(z.object({ entryId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select({ entry: timeEntries, workspaceId: projects.workspaceId }).from(timeEntries).innerJoin(tasks, eq(timeEntries.taskId, tasks.id)).innerJoin(projects, eq(tasks.projectId, projects.id)).where(eq(timeEntries.id, input.entryId)).limit(1);
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found." });
+      await assertWorkspaceMember(row.workspaceId, ctx.user.id);
+      await db.delete(timeEntries).where(eq(timeEntries.id, input.entryId));
+      return { deletedEntryId: input.entryId };
     }),
   }),
   trash: router({
