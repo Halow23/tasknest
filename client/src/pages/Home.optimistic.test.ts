@@ -20,7 +20,7 @@ describe("optimistic ui", () => {
     expect(drawer).toContain("const previousDetail = utils.tasknest.task.detail.getData(detailKey);");
     expect(drawer).toContain("item.id === input.subtaskId ? { ...item, completed: input.completed } : item");
     expect(drawer).toContain("const optimisticComment = { id: -Date.now()");
-    expect(drawer).toContain("existing.comments, optimisticComment ]");
+    expect(drawer).toContain("[...existing.comments, optimisticComment]");
     expect(drawer).toContain("setData(context.detailKey, context.previousDetail)");
   });
 

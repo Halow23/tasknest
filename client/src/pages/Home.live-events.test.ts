@@ -30,6 +30,6 @@ describe("real-time workspace events", () => {
     expect(hook).toContain('new EventSource("/api/events")');
     expect(hook).toContain('queryKey: [["tasknest", "task", "list"]]');
     expect(hook).toContain('queryKey: [["tasknest", "notification", "list"]]');
-    expect(home).toContain("useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null })");
+    expect(home).toContain("useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null, currentUserId: user?.id });");
   });
 });
