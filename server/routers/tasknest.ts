@@ -13,6 +13,7 @@ import {
   taskAssignees,
   taskFieldValues,
   taskLabels,
+  taskDependencies,
   tasks,
   users,
   workspaceInvites,
@@ -126,6 +127,36 @@ async function notifyUsers(input: { workspaceId: number; taskId?: number; actorI
   }
 }
 
+/**
+ * Returns true when adding taskId -> dependsOnTaskId would create a cycle
+ * (i.e. taskId already transitively depends on dependsOnTaskId).
+ */
+async function dependencyWouldCycle(taskId: number, dependsOnTaskId: number) {
+  const db = await requireDb();
+  const edges = await db.select({ taskId: taskDependencies.taskId, dependsOnTaskId: taskDependencies.dependsOnTaskId }).from(taskDependencies);
+  const dependents = new Map<number, number[]>();
+  for (const edge of edges) dependents.set(edge.taskId, [...(dependents.get(edge.taskId) ?? []), edge.dependsOnTaskId]);
+  const seen = new Set<number>([taskId]);
+  const queue = [taskId];
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (current === dependsOnTaskId) return true;
+    for (const next of dependents.get(current) ?? []) if (!seen.has(next)) { seen.add(next); queue.push(next); }
+  }
+  return false;
+}
+
+/** Open (not done) prerequisites for a set of tasks, keyed by taskId. */
+async function openDependenciesForTask(taskId: number) {
+  const db = await requireDb();
+  return db
+    .select({ dependencyId: taskDependencies.id, id: tasks.id, title: tasks.title, status: tasks.status })
+    .from(taskDependencies)
+    .innerJoin(tasks, eq(taskDependencies.dependsOnTaskId, tasks.id))
+    .where(and(eq(taskDependencies.taskId, taskId), sql`${tasks.completedAt} is null`))
+    .orderBy(asc(taskDependencies.id));
+}
+
 async function assertWorkspaceMember(workspaceId: number, userId: number) {
   const member = await getWorkspaceMember(workspaceId, userId);
   if (!member) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this workspace." });
@@ -232,7 +263,8 @@ async function getTaskDetail(taskId: number) {
       .where(eq(taskLabels.taskId, taskId)),
   ]);
 
-  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues, labels: taskLabelRows };
+  const openDependencies = await openDependenciesForTask(taskId);
+  return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: taskAttachments, activity, fieldValues, labels: taskLabelRows, openDependencies };
 }
 
 export const tasknestRouter = router({
@@ -417,7 +449,18 @@ export const tasknestRouter = router({
           .innerJoin(labels, eq(taskLabels.labelId, labels.id))
           .where(inArray(taskLabels.taskId, ids)),
       ]);
-      return { tasks: taskRows, assignees, labels: taskLabelRows, project };
+      const dependencyRows = ids.length > 0 ? await db
+        .select({ taskId: taskDependencies.taskId, dependsOnTaskId: taskDependencies.dependsOnTaskId })
+        .from(taskDependencies)
+        .where(inArray(taskDependencies.taskId, ids)) : [];
+      const completedTaskIds = new Set(taskRows.filter(task => task.completedAt !== null).map(task => task.id));
+      const openDependencyCount = new Map<number, number>();
+      for (const edge of dependencyRows) {
+        if (completedTaskIds.has(edge.dependsOnTaskId)) continue;
+        openDependencyCount.set(edge.taskId, (openDependencyCount.get(edge.taskId) ?? 0) + 1);
+      }
+      const tasksWithBlocking = taskRows.map(task => ({ ...task, blockedByCount: openDependencyCount.get(task.id) ?? 0 }));
+      return { tasks: tasksWithBlocking, assignees, labels: taskLabelRows, project };
     }),
     search: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(30).default(15) })).query(async ({ ctx, input }) => {
       await assertWorkspaceMember(input.workspaceId, ctx.user.id);
@@ -512,6 +555,13 @@ export const tasknestRouter = router({
     move: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), status: taskStatusSchema, sortOrder: z.number().int().min(0).max(2_147_483_647).optional() })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const db = await requireDb();
+      if (input.status === "done") {
+        const openDependencies = await openDependenciesForTask(input.taskId);
+        if (openDependencies.length > 0) {
+          const names = openDependencies.map(dependency => `"${dependency.title}"`).join(", ");
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Blocked by open dependencies: ${names}. Complete them first.` });
+        }
+      }
       const completedAt = input.status === "done" ? new Date() : null;
       await db.update(tasks).set({ status: input.status as TaskStatus, sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000), completedAt }).where(eq(tasks.id, input.taskId));
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: input.status === "done" ? "task_completed" : "task_moved", metadata: { status: input.status } });
@@ -528,6 +578,39 @@ export const tasknestRouter = router({
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .where(and(eq(taskAssignees.userId, ctx.user.id), sql`${tasks.completedAt} is null`, eq(projects.workspaceId, workspace.id), eq(projects.archived, false)))
         .orderBy(sql`${tasks.dueAt} is null`, asc(tasks.dueAt));
+    }),
+  }),
+  dependency: router({
+    list: protectedProcedure.input(taskInput).query(async ({ ctx, input }) => {
+      await assertTaskMember(input.taskId, ctx.user.id);
+      return openDependenciesForTask(input.taskId);
+    }),
+    create: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), dependsOnTaskId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (input.taskId === input.dependsOnTaskId) throw new TRPCError({ code: "BAD_REQUEST", message: "A task cannot depend on itself." });
+      const result = await assertTaskMember(input.taskId, ctx.user.id);
+      const prerequisite = await assertTaskMember(input.dependsOnTaskId, ctx.user.id);
+      if (result.project.id !== prerequisite.project.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Dependencies must stay within the same project." });
+      const db = await requireDb();
+      const existing = await db.select({ id: taskDependencies.id }).from(taskDependencies).where(and(eq(taskDependencies.taskId, input.taskId), eq(taskDependencies.dependsOnTaskId, input.dependsOnTaskId))).limit(1);
+      if (existing.length > 0) throw new TRPCError({ code: "CONFLICT", message: "This dependency already exists." });
+      if (await dependencyWouldCycle(input.taskId, input.dependsOnTaskId)) throw new TRPCError({ code: "BAD_REQUEST", message: "This dependency would create a circular chain." });
+      const created = await db.insert(taskDependencies).values({ taskId: input.taskId, dependsOnTaskId: input.dependsOnTaskId, createdById: ctx.user.id });
+      await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "dependency_added", dependsOnTaskId: input.dependsOnTaskId } });
+      return { dependencyId: Number(created[0].insertId) };
+    }),
+    delete: protectedProcedure.input(z.object({ dependencyId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const rows = await db.select({ dependency: taskDependencies, workspaceId: projects.workspaceId, projectId: projects.id })
+        .from(taskDependencies)
+        .innerJoin(tasks, eq(taskDependencies.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .where(eq(taskDependencies.id, input.dependencyId)).limit(1);
+      const row = rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Dependency not found." });
+      await assertWorkspaceMember(row.workspaceId, ctx.user.id);
+      await db.delete(taskDependencies).where(eq(taskDependencies.id, input.dependencyId));
+      await logActivity({ workspaceId: row.workspaceId, projectId: row.projectId, taskId: row.dependency.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "dependency_removed" } });
+      return { deletedDependencyId: input.dependencyId };
     }),
   }),
   label: router({
