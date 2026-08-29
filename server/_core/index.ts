@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { registerWorkspaceEvents } from "./workspaceEvents";
+import { ensureDailyHeartbeatJobs, registerScheduledJobs } from "./scheduledRoutes";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -38,6 +39,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerWorkspaceEvents(app);
+  registerScheduledJobs(app);
   // tRPC API
   app.use(
     "/api/trpc",
@@ -59,6 +61,7 @@ async function startServer() {
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+  void ensureDailyHeartbeatJobs().catch(() => undefined);
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
