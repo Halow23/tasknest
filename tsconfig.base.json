@@ -10,12 +10,7 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
-    "types": ["node", "vite/client"]
-  },
-  "files": [],
-  "references": [
-    { "path": "./apps/web" },
-    { "path": "./apps/api" },
-    { "path": "./packages/shared" }
-  ]
+    "baseUrl": ".",
+    "types": ["node"]
+  }
 }

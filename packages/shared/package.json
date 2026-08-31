@@ -1,0 +1,13 @@
+{
+  "name": "@tasknest/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./const.ts",
+  "types": "./const.ts",
+  "exports": {
+    ".": "./const.ts",
+    "./const": "./const.ts",
+    "./_core/errors": "./_core/errors.ts"
+  }
+}

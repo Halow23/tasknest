@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*", "drizzle/schema.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    "types": ["node"],
+    "baseUrl": ".",
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo.api",
+    "paths": {
+      "@shared/*": ["../../packages/shared/*"]
+    }
+  }
+}
