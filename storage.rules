@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // All uploads/downloads go through the API server's signed URLs.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
