@@ -21,14 +21,10 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ["localhost", "127.0.0.1"],
     // Dev proxy to the separated API (apps/api, port 3001). Keeps relative
-    // URLs (/api/trpc, /api/events SSE, /api/oauth/callback, /manus-storage)
-    // working while the two apps run as independent processes.
+    // URLs (/api/trpc, /api/events SSE) working while the two apps run as
+    // independent processes.
     proxy: {
       "/api": {
-        target: process.env.VITE_API_URL || "http://localhost:3001",
-        changeOrigin: true,
-      },
-      "/manus-storage": {
         target: process.env.VITE_API_URL || "http://localhost:3001",
         changeOrigin: true,
       },

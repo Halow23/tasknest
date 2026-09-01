@@ -1,8 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import { COOKIE_NAME } from "@shared/const";
-import { getTaskNestEmailAccess } from "../db";
-import { getSessionCookieOptions } from "./cookies";
-import { sdk, type AuthenticatedUser } from "./sdk";
+import { getTaskNestEmailAccess, recordDeniedSignIn } from "../db";
+import { authenticateRequest, type AuthenticatedUser } from "./firebaseAuth";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -18,15 +16,18 @@ export async function createContext(
   let accessDenied = false;
 
   try {
-    user = await sdk.authenticateRequest(opts.req);
+    user = await authenticateRequest(opts.req);
 
-    // Previously issued sessions must obey the same rule as new OAuth logins.
-    // Scheduled service identities do not represent end-user email logins.
+    // Authenticated users must obey the email allowlist, exactly like a
+    // denied sign-in. Cron identities are not end-user email logins.
     if (user && !user.isCron) {
       const accessDecision = await getTaskNestEmailAccess(user.email);
       if (!accessDecision.allowed) {
-        const cookieOptions = getSessionCookieOptions(opts.req);
-        opts.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+        await recordDeniedSignIn({
+          attemptedEmail: user.email,
+          loginMethod: user.loginMethod,
+          reason: accessDecision.reason ?? "email_not_approved",
+        }).catch(() => undefined);
         user = null;
         accessDenied = true;
       }

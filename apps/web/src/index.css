@@ -78,7 +78,7 @@
   }
 
   #root main > div > section > div.relative::after {
-    background: url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
+    background: url('/images/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
     content: "";
     inset: 0 0 0 auto;
     opacity: 1;
@@ -108,7 +108,7 @@
   }
 
   #root aside > div.mt-auto::after {
-    background: url('/manus-storage/tasknest-collaboration-orbit_543d97e9.png') right -1.3rem bottom -3.1rem / 250px auto no-repeat;
+    background: url('/images/tasknest-collaboration-orbit_543d97e9.png') right -1.3rem bottom -3.1rem / 250px auto no-repeat;
     content: "";
     inset: 0;
     opacity: 0.85;
@@ -132,7 +132,7 @@
   #root > main.p-5 > div > section::after {
     background:
       linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.88) 48%, rgba(255, 255, 255, 0.15) 100%),
-      url('/manus-storage/tasknest-wave-field_1dfe5e9b.png') right center / cover no-repeat;
+      url('/images/tasknest-wave-field_1dfe5e9b.png') right center / cover no-repeat;
     content: "";
     inset: 0;
     pointer-events: none;

@@ -9,9 +9,9 @@ describe("presigned uploads", () => {
     expect(source).toContain("presign: protectedProcedure.input(z.object({ taskId:");
     expect(source).toContain("register: protectedProcedure.input(z.object({ taskId:");
     expect(source).toContain("byteSize: z.number().int().min(1).max(50 * 1024 * 1024)");
-    expect(source).toContain("storagePresignPutUrl(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`)");
-    expect(source).toContain("`/manus-storage/${input.storageKey}`");
+    expect(source).toContain("storagePresignPutUrl(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`, input.contentType)");
     expect(storage).toContain("export async function storagePresignPutUrl(");
+    expect(storage).toContain("firebaseStorage()");
   });
 
   it("keeps the legacy base64 upload as fallback", async () => {

@@ -1,24 +1,48 @@
 import { startLogin } from "@/const";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
   redirectPath?: string;
 };
 
+/**
+ * Auth state = Firebase session (the identity) + the server's user record
+ * (the numeric id, role, and allowlist verdict). `isAuthenticated` is only
+ * true once the server has accepted the Firebase identity, so access-denied
+ * users never see app data.
+ */
 export function useAuth(options?: UseAuthOptions) {
-  // Login is started via startLogin() in the effect below, only when we actually
-  // navigate — never during render. startLogin() mints a one-time nonce + writes
-  // the state cookie, so calling it per render would overwrite the cookie and
-  // desync it from an in-flight login's `state`.
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
+
+  const [firebaseUser, setFirebaseUser] = useState<{
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+  } | null>(null);
+  const [firebaseReady, setFirebaseReady] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => {
+      setFirebaseUser(
+        user
+          ? { uid: user.uid, email: user.email, displayName: user.displayName }
+          : null
+      );
+      setFirebaseReady(true);
+    });
+    return unsubscribe;
+  }, []);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: firebaseReady,
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -35,29 +59,21 @@ export function useAuth(options?: UseAuthOptions) {
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
-        return;
+        // Expected when the session already expired server-side.
+      } else {
+        throw error;
       }
-      throw error;
     } finally {
-      // Clear the Preview auto-login token mirrored into sessionStorage, so
-      // header-based sessions (Safari ITP / WebView) are logged out too. The
-      // backend cookie is cleared by the logout mutation.
-      try {
-        sessionStorage.removeItem("manus-cookie");
-      } catch {}
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
     }
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      loading: !firebaseReady || meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
@@ -67,32 +83,30 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    firebaseReady,
   ]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if (!firebaseReady || meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;
 
-    // Navigate at this moment only. startLogin() mints the nonce + cookie itself.
     if (redirectPath) {
       window.location.href = redirectPath;
-    } else {
-      startLogin();
+      return;
     }
+    void startLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     redirectOnUnauthenticated,
     redirectPath,
-    logoutMutation.isPending,
+    firebaseReady,
     meQuery.isLoading,
+    logoutMutation.isPending,
     state.user,
   ]);
 
-  return {
-    ...state,
-    refresh: () => meQuery.refetch(),
-    logout,
-  };
+  return { ...state, logout, firebaseUser };
 }

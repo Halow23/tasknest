@@ -1,19 +1,20 @@
 import type { Express, Request, Response } from "express";
 import { workspaceEvents, type WorkspaceEvent } from "../events";
 import { getFirstWorkspaceForUser } from "../db";
-import { sdk, type AuthenticatedUser } from "./sdk";
+import { authenticateRequest, type AuthenticatedUser } from "./firebaseAuth";
 
 /**
  * Server-sent events stream of workspace activity for the signed-in user's
- * workspace. Authenticates through the same session cookie as tRPC, then
- * streams every published event scoped to the user's workspace with a 25s
- * heartbeat comment to keep intermediaries from closing the connection.
+ * workspace. Authenticates with the Firebase ID token (Authorization header,
+ * or ?token= since EventSource cannot set headers), then streams every
+ * published event scoped to the user's workspace with a 25s heartbeat
+ * comment to keep intermediaries from closing the connection.
  */
 export function registerWorkspaceEvents(app: Express) {
   app.get("/api/events", async (req: Request, res: Response) => {
     let user: AuthenticatedUser | null = null;
     try {
-      user = await sdk.authenticateRequest(req);
+      user = await authenticateRequest(req);
     } catch {
       user = null;
     }

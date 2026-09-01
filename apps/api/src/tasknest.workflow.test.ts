@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   },
   selectRows: [] as unknown[],
   createdWorkspace: { id: 4, name: "Operations", ownerId: 1, createdAt: new Date(), updatedAt: new Date() },
-  storagePut: vi.fn().mockResolvedValue({ key: "tasknest/test.txt", url: "/manus-storage/tasknest/test.txt" }),
+  storagePut: vi.fn().mockResolvedValue({ key: "tasknest/test.txt" }),
   sendWorkspaceInvitationEmail: vi.fn().mockResolvedValue("email_123"),
 }));
 
@@ -167,7 +167,7 @@ describe("TaskNest live collaboration workflows", () => {
       fileName: "handoff.txt",
       contentType: "text/plain",
       dataBase64: Buffer.from("durable task context").toString("base64"),
-    })).resolves.toMatchObject({ id: 88, key: "tasknest/test.txt", url: "/manus-storage/tasknest/test.txt" });
+    })).resolves.toMatchObject({ id: 88, key: "tasknest/test.txt" });
     expect(state.storagePut).toHaveBeenCalledWith(
       "tasknest/4/tasks/88/handoff.txt",
       expect.any(Buffer),

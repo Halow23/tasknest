@@ -32,11 +32,14 @@ let cachedApp: App | undefined;
 
 export function getFirebaseApp(): App {
   if (!cachedApp) {
+    const serviceAccount = getServiceAccount();
     cachedApp = getApps().length
       ? getApps()[0]
       : initializeApp({
           projectId: process.env.FIREBASE_PROJECT_ID,
-          credential: getServiceAccount(),
+          // The credential key must be absent (not undefined) when no service
+          // account is configured — the SDK rejects `credential: undefined`.
+          ...(serviceAccount ? { credential: serviceAccount } : {}),
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
         });
   }

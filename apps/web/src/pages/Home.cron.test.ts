@@ -23,18 +23,14 @@ describe("reminders, digest, and purge cron", () => {
     expect(email).toContain("/?task=${task.id}");
   });
 
-  it("registers authenticated /api/scheduled routes and upserts daily heartbeat jobs by name", async () => {
+  it("registers authenticated /api/scheduled routes gated by the cron secret", async () => {
     const routes = await readFile(new URL("../../../api/src/_core/scheduledRoutes.ts", import.meta.url), "utf8");
     const index = await readFile(new URL("../../../api/src/_core/index.ts", import.meta.url), "utf8");
 
     expect(routes).toContain('app.post("/api/scheduled/reminders"');
     expect(routes).toContain('app.post("/api/scheduled/digest"');
     expect(routes).toContain('app.post("/api/scheduled/purge"');
-    expect(routes).toContain('name: "tasknest-reminders", cron: "0 7 * * *"');
-    expect(routes).toContain('name: "tasknest-digest", cron: "0 8 * * *"');
-    expect(routes).toContain('name: "tasknest-purge", cron: "0 3 * * *"');
-    expect(routes).toContain("existing.jobs.some(candidate => candidate.name === job.name)");
+    expect(routes).toContain('bodySecret === ENV.cronSecret');
     expect(index).toContain("registerScheduledJobs(app);");
-    expect(index).toContain("void ensureDailyHeartbeatJobs().catch(() => undefined);");
   });
 });

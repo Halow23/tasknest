@@ -1,12 +1,10 @@
-import "dotenv/config";
+import "./loadEnv";
 import express from "express";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
 import { registerWorkspaceEvents } from "./workspaceEvents";
-import { ensureDailyHeartbeatJobs, registerScheduledJobs } from "./scheduledRoutes";
+import { registerScheduledJobs } from "./scheduledRoutes";
 import { createContext } from "./context";
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
@@ -38,8 +36,6 @@ async function startServer() {
     next();
   });
 
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
   registerWorkspaceEvents(app);
   registerScheduledJobs(app);
 
@@ -62,10 +58,6 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`TaskNest API running on http://localhost:${port}/`);
   });
-
-  // Register daily platform-cron jobs (reminders/digest/purge). No-op unless
-  // the Manus heartbeat service credentials are configured.
-  void ensureDailyHeartbeatJobs().catch(() => undefined);
 }
 
 startServer().catch(console.error);

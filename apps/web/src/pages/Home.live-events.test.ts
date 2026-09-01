@@ -16,7 +16,7 @@ describe("real-time workspace events", () => {
     const route = await readFile(new URL("../../../api/src/_core/workspaceEvents.ts", import.meta.url), "utf8");
 
     expect(route).toContain('app.get("/api/events"');
-    expect(route).toContain("sdk.authenticateRequest(req)");
+    expect(route).toContain("authenticateRequest(req)");
     expect(route).toContain('"Content-Type": "text/event-stream"');
     expect(route).toContain("if (event.workspaceId !== workspace.id) return;");
     expect(route).toContain('": heartbeat\\n\\n"');
@@ -27,7 +27,8 @@ describe("real-time workspace events", () => {
     const hook = await readFile(new URL("../hooks/useWorkspaceEvents.ts", import.meta.url), "utf8");
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
 
-    expect(hook).toContain('new EventSource("/api/events")');
+    expect(hook).toContain("new EventSource(`${base}/api/events?token=${encodeURIComponent(token)}`)");
+    expect(hook).toContain("currentUser.getIdToken()");
     expect(hook).toContain('queryKey: [["tasknest", "task", "list"]]');
     expect(hook).toContain('queryKey: [["tasknest", "notification", "list"]]');
     expect(home).toContain("useWorkspaceEvents({ enabled: isAuthenticated && workspace !== null, currentUserId: user?.id });");

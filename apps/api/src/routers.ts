@@ -1,5 +1,3 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { accessManagementRouter } from "./routers/accessManagement";
@@ -10,11 +8,9 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     access: publicProcedure.query((opts) => ({ denied: opts.ctx.accessDenied })),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
+    // Sessions are Firebase ID tokens held by the client; sign-out happens in
+    // the browser via firebase.auth().signOut(). Kept for client compatibility.
+    logout: publicProcedure.mutation(() => ({ success: true } as const)),
   }),
   accessManagement: accessManagementRouter,
   tasknest: tasknestRouter,

@@ -1,19 +1,18 @@
 import type { Express, Request, Response } from "express";
 import { ENV } from "./env";
-import { sdk } from "./sdk";
+import { authenticateRequest } from "./firebaseAuth";
 import { runDigestSweep, runPurgeSweep, runReminderSweep } from "../scheduledJobs";
-import { createHeartbeatJob, listHeartbeatJobs } from "./heartbeat";
 
 /**
- * Platform-cron entry points. The Manus heartbeat service POSTs to these
- * routes on schedule; each request is authorized either as a platform cron
- * identity or via the shared JWT secret (belt and braces for local runs).
+ * Cron entry points. Cloud Scheduler (or any scheduler) POSTs to these routes
+ * with the shared CRON_SECRET (header `x-cron-secret` or body `cronSecret`);
+ * authenticated users may also trigger them manually.
  */
 async function authorize(req: Request): Promise<boolean> {
   const bodySecret = (req.body ?? {})["cronSecret"] ?? req.header("x-cron-secret");
-  if (bodySecret && ENV.cookieSecret && bodySecret === ENV.cookieSecret) return true;
+  if (bodySecret && ENV.cronSecret && bodySecret === ENV.cronSecret) return true;
   try {
-    const user = await sdk.authenticateRequest(req);
+    const user = await authenticateRequest(req);
     return Boolean(user);
   } catch {
     return false;
@@ -43,27 +42,3 @@ export function registerScheduledJobs(app: Express) {
     respond(res, result);
   });
 }
-
-const DAILY_JOBS = [
-  { name: "tasknest-reminders", cron: "0 7 * * *", path: "/api/scheduled/reminders" },
-  { name: "tasknest-digest", cron: "0 8 * * *", path: "/api/scheduled/digest" },
-  { name: "tasknest-purge", cron: "0 3 * * *", path: "/api/scheduled/purge" },
-] as const;
-
-/**
- * Upserts the three daily heartbeat jobs by name so repeated deploys never
- * duplicate schedules. Failures are swallowed: the routes remain callable
- * (e.g. by an external scheduler) even when the platform job API is absent.
- */
-export async function ensureDailyHeartbeatJobs() {
-  for (const job of DAILY_JOBS) {
-    try {
-      const existing = await listHeartbeatJobs("");
-      if (existing.jobs.some(candidate => candidate.name === job.name)) continue;
-      await createHeartbeatJob({ name: job.name, cron: job.cron, path: job.path, method: "POST", payload: {} }, "");
-    } catch {
-      // Job registration is best-effort; the manual POST routes still work.
-    }
-  }
-}
-
