@@ -1,0 +1,356 @@
+/* Signal Desk: instrument-like lane grouping, sky-blue orientation, coral-only signals, and nest-ring focus cues. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.003 220);
+  --foreground: oklch(0.25 0.043 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.043 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.043 260);
+  --primary: oklch(0.67 0.13 230);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.965 0.012 225);
+  --secondary-foreground: oklch(0.34 0.034 250);
+  --muted: oklch(0.965 0.008 220);
+  --muted-foreground: oklch(0.56 0.025 235);
+  --accent: oklch(0.95 0.026 225);
+  --accent-foreground: oklch(0.34 0.034 250);
+  --destructive: oklch(0.65 0.19 28);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.92 0.011 220);
+  --input: oklch(0.92 0.011 220);
+  --ring: oklch(0.67 0.13 230);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { min-width: 320px; background: #f7fafb; }
+  body { @apply bg-background text-foreground; font-family: "Manrope", ui-sans-serif, system-ui, sans-serif; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[href] { @apply cursor-pointer; }
+  button { transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); }
+  button:active { transform: scale(0.97); }
+}
+
+@layer components {
+  .section-label { @apply text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8EA0AB]; }
+  .kanban-lane { transition: background-color 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .kanban-lane:has(.task-card:active) { background-color: #e9f4f9; }
+
+  /* Supporting TaskNest artwork is intentionally placed on orientation surfaces,
+     not repeated on task cards where it would compete with work content. */
+  #root main > div > section > div.relative {
+    background-color: #ffffff !important;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  #root main > div > section > div.relative::after {
+    background: url('/images/tasknest-wave-field_1dfe5e9b.png') right 35% center / cover no-repeat;
+    content: "";
+    inset: 0 0 0 auto;
+    opacity: 1;
+    pointer-events: none;
+    position: absolute;
+    width: min(46%, 500px);
+    z-index: 0;
+  }
+
+  #root main > div > section > div.relative > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  #root main > div > section > div.relative > div > div:first-child > p {
+    color: #245779 !important;
+  }
+
+  #root main > div > section > div.relative > div > div:last-child > span {
+    color: #4e758d !important;
+  }
+
+  #root aside > div.mt-auto {
+    isolation: isolate;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #root aside > div.mt-auto::after {
+    background: url('/images/tasknest-collaboration-orbit_543d97e9.png') right -1.3rem bottom -3.1rem / 250px auto no-repeat;
+    content: "";
+    inset: 0;
+    opacity: 0.85;
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+  }
+
+  #root aside > div.mt-auto > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* The sign-in shell uses the same calm orientation field, reserving its copy on the left. */
+  #root > main.p-5 > div > section {
+    isolation: isolate;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #root > main.p-5 > div > section::after {
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.88) 48%, rgba(255, 255, 255, 0.15) 100%),
+      url('/images/tasknest-wave-field_1dfe5e9b.png') right center / cover no-repeat;
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+  }
+
+  #root > main.p-5 > div > section > * {
+    position: relative;
+    z-index: 1;
+  }
+
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .task-card { animation: task-in 300ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .task-card:nth-child(2) { animation-delay: 35ms; }
+  .task-card:nth-child(3) { animation-delay: 70ms; }
+}
+
+@keyframes task-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 1023px) {
+  /* The desktop rail becomes an on-page mobile workspace navigator, so no project or view controls disappear on touch devices. */
+  #root main > div {
+    display: block;
+    min-height: 100vh;
+    overflow-x: clip;
+  }
+
+  #root main > div > aside.hidden.lg\:flex {
+    background: #ffffff;
+    border-bottom: 1px solid #dfe9ee;
+    border-right: 0;
+    box-sizing: border-box;
+    display: flex !important;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.7rem 1rem 0.75rem;
+    position: relative;
+    width: 100%;
+  }
+
+  #root main > div > aside > div:first-child,
+  #root main > div > aside > div.mt-auto {
+    display: none;
+  }
+
+  #root main > div > aside > nav {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0;
+    padding-right: 2.6rem;
+  }
+
+  #root main > div > aside > nav > button {
+    flex: 1 1 0;
+    gap: 0.35rem;
+    justify-content: center;
+    min-width: 0;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  #root main > div > aside > section {
+    margin-top: 0.7rem;
+  }
+
+  #root main > div > aside > section > div:first-child {
+    padding-left: 0.1rem;
+    padding-right: 0.1rem;
+  }
+
+  #root main > div > aside > section > div.mt-2 {
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    scrollbar-width: thin;
+  }
+
+  #root main > div > aside > section > div.mt-2 > button {
+    flex: 0 0 auto;
+    min-width: max-content;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  #root main > div > aside > button {
+    align-items: center;
+    display: flex;
+    font-size: 0;
+    height: 2rem;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.68rem;
+    width: 2rem;
+  }
+
+  #root main > div > aside > button svg {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  #root main > div > section {
+    min-height: 0;
+  }
+
+  #root main > div > section > header {
+    gap: 0.75rem;
+    min-height: 4rem;
+    padding: 0.65rem 1rem;
+  }
+
+  #root main > div > section > header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  #root main > div > section > header > div:first-child > p,
+  #root main > div > section > header > div:first-child > h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #root main > div > section > header > div:first-child > h1 {
+    font-size: 1rem;
+  }
+
+  #root main > div > section > header > div:last-child {
+    flex: 0 0 auto;
+  }
+
+  #root main > div > section > div.relative,
+  #root main > div > section > div:nth-of-type(2) {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  #root main > div > section > div:nth-of-type(2) {
+    align-items: flex-start;
+  }
+
+  #root main > div > section > div:nth-of-type(2) [role="tablist"] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0.75rem 1rem 0;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    padding: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto > div.grid {
+    display: flex;
+    gap: 0.75rem;
+    min-width: 100%;
+    width: max-content;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-x-auto > div.grid > section {
+    flex: 0 0 min(82vw, 22rem);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  #root main > div > section > div.flex.min-h-0.flex-1.flex-col > div.flex-1.overflow-auto {
+    padding: 1.25rem;
+  }
+
+  #root > main.p-5 {
+    padding: 0.75rem;
+  }
+
+  #root > main.p-5 > div > section {
+    padding: 1.5rem !important;
+  }
+
+  #root > main.p-5 form > div {
+    flex-direction: column;
+  }
+
+  #root > main.p-5 form > div > button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 639px) {
+  #root main > div > aside > nav > button {
+    font-size: 10px;
+  }
+
+  #root main > div > section > header > div:last-child > button {
+    min-height: 2.25rem;
+  }
+
+  #root [data-slot="sheet-content"] .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  #root [data-slot="sheet-content"] .space-y-6 {
+    row-gap: 1.25rem;
+  }
+
+  #root [data-slot="sheet-content"] .flex.items-center.justify-between.border-t > span {
+    max-width: 10.5rem;
+  }
+}
