@@ -287,6 +287,7 @@ export async function updateTask(
     priority: TaskPriority;
     recurrenceRule: TaskRecurrence;
     dueAt: Date | null;
+    sortOrder: number;
     completedAt: Date | null;
     deletedAt: Date | null;
     assigneeIds: string[];

@@ -6,16 +6,14 @@ import { EventEmitter } from "events";
  * client and streams events scoped to that client's workspace.
  */
 export const workspaceEvents = new EventEmitter();
-// A single process never has thousands of concurrent SSE clients; raise the
-// default (10) so each open connection can subscribe without warnings.
 workspaceEvents.setMaxListeners(200);
 
 export type WorkspaceEvent = {
-  workspaceId: number;
+  workspaceId: string;
   type: string;
-  projectId?: number | null;
-  taskId?: number | null;
-  actorId: number;
+  projectId?: string | null;
+  taskId?: string | null;
+  actorId: string;
   at: string;
 };
 

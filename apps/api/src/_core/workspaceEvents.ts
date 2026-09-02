@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { workspaceEvents, type WorkspaceEvent } from "../events";
-import { getFirstWorkspaceForUser } from "../db";
+import { getWorkspaceForUser } from "../firestore/workspace";
 import { authenticateRequest, type AuthenticatedUser } from "./firebaseAuth";
 
 /**
@@ -23,7 +23,7 @@ export function registerWorkspaceEvents(app: Express) {
       return;
     }
 
-    const workspace = await getFirstWorkspaceForUser(user.id);
+    const workspace = await getWorkspaceForUser(user.id);
     if (!workspace) {
       res.status(404).json({ error: "No workspace." });
       return;

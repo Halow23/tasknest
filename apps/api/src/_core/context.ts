@@ -1,5 +1,5 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import { getTaskNestEmailAccess, recordDeniedSignIn } from "../db";
+import { getTaskNestEmailAccess, recordDeniedSignIn } from "../firestore/access";
 import { authenticateRequest, type AuthenticatedUser } from "./firebaseAuth";
 
 export type TrpcContext = {
@@ -18,8 +18,7 @@ export async function createContext(
   try {
     user = await authenticateRequest(opts.req);
 
-    // Authenticated users must obey the email allowlist, exactly like a
-    // denied sign-in. Cron identities are not end-user email logins.
+    // Authenticated users must obey the email allowlist
     if (user && !user.isCron) {
       const accessDecision = await getTaskNestEmailAccess(user.email);
       if (!accessDecision.allowed) {
@@ -32,7 +31,7 @@ export async function createContext(
         accessDenied = true;
       }
     }
-  } catch (error) {
+  } catch {
     // Authentication is optional for public procedures.
     user = null;
   }
