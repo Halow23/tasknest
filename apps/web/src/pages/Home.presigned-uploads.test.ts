@@ -29,4 +29,16 @@ describe("presigned uploads", () => {
     expect(drawer).toContain("Direct upload unavailable — sending through the server instead.");
     expect(drawer).toContain("const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;");
   });
+
+  it("relays through the server without an error toast when signing is unavailable", async () => {
+    const storage = await readFile(new URL("../../../api/src/storage.ts", import.meta.url), "utf8");
+    const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
+
+    // The Storage emulator cannot sign V4 URLs, so presign reports "no direct
+    // upload" instead of throwing, and downloads use Firebase download tokens.
+    expect(storage).toContain("Promise<{ key: string; uploadUrl: string | null }>");
+    expect(storage).toContain("if (emulatorHost()) return { key, uploadUrl: null };");
+    expect(storage).toContain("firebaseStorageDownloadTokens");
+    expect(drawer).toContain("if (!presigned.uploadUrl) { relayThroughServer(); return; }");
+  });
 });
