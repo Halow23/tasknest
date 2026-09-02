@@ -113,3 +113,6 @@ temp/
 apps/web/public/__manus__/version.json
 .project-config.json
 .zcode/
+
+# Firebase credentials
+firebase-service-account.json

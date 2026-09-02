@@ -9,6 +9,9 @@ export const ENV = {
   cronSecret: process.env.CRON_SECRET ?? "",
   // Comma-separated list of browser origins allowed to call the API.
   allowedOrigins: process.env.ALLOWED_ORIGINS ?? "http://localhost:5173",
-  resendApiKey: process.env.RESEND_API_KEY ?? "",
-  resendFromEmail: process.env.RESEND_FROM_EMAIL ?? "",
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: parseInt(process.env.SMTP_PORT ?? "587", 10),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  smtpFrom: process.env.SMTP_FROM ?? "",
 };
