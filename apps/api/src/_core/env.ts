@@ -1,5 +1,4 @@
 export const ENV = {
-  databaseUrl: process.env.DATABASE_URL ?? "",
   isProduction: process.env.NODE_ENV === "production",
   // Comma-separated list of emails that receive the admin role on first sign-in.
   adminEmails: (process.env.ADMIN_EMAILS ?? "")
