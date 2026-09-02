@@ -108,14 +108,17 @@ export function TaskDrawer({ taskId, members, fields, labels, projectTasks, onCl
         reader.readAsDataURL(file);
       };
       try {
-        // Browser-direct flow: presign, PUT the bytes straight to storage, then register.
-        // uploadUrl is null when signing is unavailable (the Storage emulator), in which
-        // case the server relay is the expected path rather than a failure.
+        // Browser-direct flow: presign with Cloudinary-signed params, POST
+        // the file directly to Cloudinary's upload endpoint, then register.
         const presigned = await presignMutation.mutateAsync({ taskId, fileName: file.name, contentType, byteSize: file.size });
-        if (!presigned.uploadUrl) { relayThroughServer(); return; }
-        const putResponse = await fetch(presigned.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
+        if (!presigned.uploadUrl || !presigned.uploadParams) { relayThroughServer(); return; }
+        const formData = new FormData();
+        for (const [k, v] of Object.entries(presigned.uploadParams)) formData.append(k, String(v));
+        formData.append("file", file);
+        const putResponse = await fetch(presigned.uploadUrl, { method: "POST", body: formData });
         if (!putResponse.ok) throw new Error(`Upload failed (${putResponse.status})`);
-        await registerMutation.mutateAsync({ taskId, fileName: file.name, contentType, byteSize: file.size, storageKey: presigned.key });
+        const uploadResult = await putResponse.json() as { secure_url: string; public_id: string };
+        await registerMutation.mutateAsync({ taskId, fileName: file.name, contentType, byteSize: file.size, storageKey: uploadResult.public_id, cloudinaryUrl: uploadResult.secure_url });
       } catch {
         // Fallback: relay the bytes through the base64 upload path.
         toast.info("Direct upload unavailable — sending through the server instead.");

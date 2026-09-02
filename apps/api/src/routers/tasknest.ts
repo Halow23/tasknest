@@ -39,7 +39,7 @@ import {
 } from "../db";
 import { sendWorkspaceInvitationEmail } from "../invitationEmail";
 import { publishWorkspaceEvent } from "../events";
-import { storagePresignPutUrl, storagePut, storageGetSignedUrl } from "../storage";
+import { storagePresignPutUrl, storagePut, storageGetUrl } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
 
 const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
@@ -396,16 +396,11 @@ async function getTaskDetail(taskId: number) {
   ]);
 
   const openDependencies = await openDependenciesForTask(taskId);
-  // Download links are fresh signed URLs minted at read time (they expire, so
-  // nothing stale is stored on the attachment row).
-  const attachmentsWithUrls = await Promise.all(
-    taskAttachments.map(async (row) => ({
-      ...row,
-      storageUrl: row.storageKey
-        ? await storageGetSignedUrl(row.storageKey).catch(() => null)
-        : null,
-    }))
-  );
+  // Cloudinary URLs are permanent CDN links stored at upload time.
+  const attachmentsWithUrls = taskAttachments.map((row) => ({
+    ...row,
+    storageUrl: row.storageUrl ? storageGetUrl(row.storageUrl) : null,
+  }));
   return { ...taskResult.task, project: taskResult.project, assignees, subtasks: taskSubtasks, comments: taskComments, attachments: attachmentsWithUrls, activity, fieldValues, labels: taskLabelRows, openDependencies, timeEntries: timeEntriesRows };
 }
 
@@ -1088,12 +1083,12 @@ export const tasknestRouter = router({
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const safeFileName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const presigned = await storagePresignPutUrl(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`, input.contentType);
-      return { key: presigned.key, uploadUrl: presigned.uploadUrl };
+      return { key: presigned.key, uploadUrl: presigned.uploadUrl, uploadParams: presigned.uploadParams };
     }),
-    register: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), fileName: z.string().trim().min(1).max(240), contentType: z.string().trim().min(3).max(120), byteSize: z.number().int().min(1).max(50 * 1024 * 1024), storageKey: z.string().trim().min(1).max(512) })).mutation(async ({ ctx, input }) => {
+    register: protectedProcedure.input(z.object({ taskId: z.number().int().positive(), fileName: z.string().trim().min(1).max(240), contentType: z.string().trim().min(3).max(120), byteSize: z.number().int().min(1).max(50 * 1024 * 1024), storageKey: z.string().trim().min(1).max(512), cloudinaryUrl: z.string().url().min(1).max(1024) })).mutation(async ({ ctx, input }) => {
       const result = await assertTaskMember(input.taskId, ctx.user.id);
       const db = await requireDb();
-      const created = await db.insert(attachments).values({ taskId: input.taskId, uploadedById: ctx.user.id, fileName: input.fileName, contentType: input.contentType, byteSize: input.byteSize, storageKey: input.storageKey, storageUrl: `gs://${input.storageKey}` });
+      const created = await db.insert(attachments).values({ taskId: input.taskId, uploadedById: ctx.user.id, fileName: input.fileName, contentType: input.contentType, byteSize: input.byteSize, storageKey: input.storageKey, storageUrl: input.cloudinaryUrl });
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
       return { id: Number(created[0].insertId), key: input.storageKey };
     }),
@@ -1104,9 +1099,9 @@ export const tasknestRouter = router({
       const safeFileName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const stored = await storagePut(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`, bytes, input.contentType);
       const db = await requireDb();
-      const created = await db.insert(attachments).values({ taskId: input.taskId, uploadedById: ctx.user.id, fileName: input.fileName, contentType: input.contentType, byteSize: bytes.byteLength, storageKey: stored.key, storageUrl: `gs://${stored.key}` });
+      const created = await db.insert(attachments).values({ taskId: input.taskId, uploadedById: ctx.user.id, fileName: input.fileName, contentType: input.contentType, byteSize: bytes.byteLength, storageKey: stored.key, storageUrl: stored.url });
       await logActivity({ workspaceId: result.project.workspaceId, projectId: result.project.id, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
-      return { id: Number(created[0].insertId), ...stored };
+      return { id: Number(created[0].insertId), key: stored.key, url: stored.url };
     }),
   }),
   analytics: router({
