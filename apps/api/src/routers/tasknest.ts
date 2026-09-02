@@ -186,7 +186,7 @@ async function spawnRecurringTask(task: TaskDoc, wsId: string, completedAt: Date
   for (const s of task.subtasks) {
     await addSubtask(wsId, nextTask.id, s.title);
   }
-  await logActivity({
+  await logActivityAndSideEffects({
     wsId,
     projectId: task.projectId,
     taskId: nextTask.id,
@@ -215,6 +215,32 @@ export function extractMentionedUserIds(
   return mentioned;
 }
 
+/**
+ * Full activity pipeline: persists the activity row, publishes the SSE
+ * workspace event, and fires matching automations (best-effort, no cascade).
+ * Automations are skipped for system actors and for events produced by
+ * automations themselves so rules can never cascade.
+ */
+export async function logActivityAndSideEffects(input: {
+  wsId: string;
+  taskId: string | null;
+  projectId: string | null;
+  actorId: string;
+  type: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  await logActivity({
+    wsId: input.wsId,
+    taskId: input.taskId,
+    projectId: input.projectId,
+    actorId: input.actorId,
+    type: input.type as Parameters<typeof logActivity>[0]["type"],
+    metadata: input.metadata,
+  });
+  publishWorkspaceEvent({ workspaceId: input.wsId, type: input.type, projectId: input.projectId, taskId: input.taskId, actorId: input.actorId, at: new Date().toISOString() });
+  void runAutomationsForEvent({ wsId: input.wsId, type: input.type, actorId: input.actorId, taskId: input.taskId, metadata: input.metadata });
+}
+
 async function runAutomationsForEvent(input: {
   wsId: string;
   type: string;
@@ -237,15 +263,19 @@ async function runAutomationsForEvent(input: {
 
     for (const d of snap.docs) {
       const rule = { id: d.id, ...d.data() } as AutomationRuleDoc;
-      if (rule.action === "assign_user") {
-        const uid = rule.action;
-        await updateTask(input.wsId, task.id, { assigneeIds: [uid] });
-      } else if (rule.action === "set_priority") {
-        const p = taskPrioritySchema.safeParse(rule.action);
+      const [actionKind, ...actionRest] = rule.action.split(":");
+      const actionValue = actionRest.join(":");
+      if (actionKind === "assign_user") {
+        await updateTask(input.wsId, task.id, { assigneeIds: [actionValue] });
+        await createNotification({ userId: actionValue, type: "automation", actorId: input.actorId, actorName: "Automation", taskId: task.id, taskTitle: task.title, workspaceId: input.wsId });
+      } else if (actionKind === "set_priority") {
+        const p = taskPrioritySchema.safeParse(actionValue);
         if (p.success) await updateTask(input.wsId, task.id, { priority: p.data });
-      } else if (rule.action === "move_status") {
-        const s = taskStatusSchema.safeParse(rule.action);
+      } else if (actionKind === "move_status") {
+        const s = taskStatusSchema.safeParse(actionValue);
         if (s.success) await updateTask(input.wsId, task.id, { status: s.data });
+      } else if (actionKind === "notify_user") {
+        await createNotification({ userId: actionValue, type: "automation", actorId: input.actorId, actorName: "Automation", taskId: task.id, taskTitle: task.title, workspaceId: input.wsId });
       }
     }
   } catch {
@@ -282,7 +312,7 @@ export const tasknestRouter = router({
           ownerName: ctx.user.name,
           ownerEmail: ctx.user.email,
         });
-        await logActivity({ wsId: ws.id, taskId: null, projectId: null, actorId: ctx.user.id, type: "member_joined", metadata: { action: "workspace_created" } });
+        await logActivityAndSideEffects({ wsId: ws.id, taskId: null, projectId: null, actorId: ctx.user.id, type: "member_joined", metadata: { action: "workspace_created" } });
         return ws;
       }),
 
@@ -361,7 +391,7 @@ export const tasknestRouter = router({
         const { addWorkspaceMember, acceptInvite } = await import("../firestore/workspace");
         await addWorkspaceMember(invite.workspaceId, { id: ctx.user.id, name: ctx.user.name, email: ctx.user.email, role: "user" });
         await acceptInvite(invite.id, invite.workspaceId, ctx.user.id);
-        await logActivity({ wsId: invite.workspaceId, taskId: null, projectId: null, actorId: ctx.user.id, type: "member_joined", metadata: { action: "invite_accepted" } });
+        await logActivityAndSideEffects({ wsId: invite.workspaceId, taskId: null, projectId: null, actorId: ctx.user.id, type: "member_joined", metadata: { action: "invite_accepted" } });
         return { workspaceId: invite.workspaceId };
       }),
   }),
@@ -437,7 +467,7 @@ export const tasknestRouter = router({
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const fs = db();
         await projectsCol(fs, input.workspaceId).doc(input.projectId).update({ deletedAt: Timestamp.now() });
-        await logActivity({ wsId: input.workspaceId, projectId: input.projectId, taskId: null, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_deleted", projectName: proj.name } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: input.projectId, taskId: null, actorId: ctx.user.id, type: "task_updated", metadata: { action: "project_deleted", projectName: proj.name } });
         return { deletedProjectId: input.projectId };
       }),
 
@@ -491,21 +521,31 @@ export const tasknestRouter = router({
           labelId: input.labelId ?? undefined,
           dueBucket: input.dueBucket,
         });
+        // Open-dependency counts per task, joined into the list rows.
+        const blockedByCount = new Map<string, number>();
+        const withDeps = tasks.filter((t) => t.dependencies.length > 0);
+        if (withDeps.length) {
+          const openDeps = await Promise.all(
+            withDeps.map(async (t) => [t.id, await getOpenDependencies(input.workspaceId, t.id)] as const),
+          );
+          for (const [id, deps] of openDeps) blockedByCount.set(id, deps.length);
+        }
+        const tasksWithCounts = tasks.map((t) => ({ ...t, blockedByCount: blockedByCount.get(t.id) ?? 0 }));
         const memberRows = ws.members.map((m) => ({ id: m.userId, name: m.name, email: m.email }));
-        const assignees = tasks.flatMap((task) =>
+        const assignees = tasksWithCounts.flatMap((task) =>
           task.assigneeIds.map((uid) => {
             const member = ws.members.find((m) => m.userId === uid);
             return { taskId: task.id, id: uid, name: member?.name ?? null, email: member?.email ?? null };
           }),
         );
         const allLabels = await getLabels(input.workspaceId);
-        const labelRows = tasks.flatMap((task) =>
+        const labelRows = tasksWithCounts.flatMap((task) =>
           task.labelIds.map((labelId) => {
             const label = allLabels.find((l) => l.id === labelId);
             return { taskId: task.id, id: labelId, name: label?.name ?? "", color: label?.color ?? "#38A9F2" };
           }),
         );
-        return { tasks, assignees, labels: labelRows, project: proj };
+        return { tasks: tasksWithCounts, assignees, labels: labelRows, project: proj };
       }),
 
     search: protectedProcedure
@@ -620,7 +660,7 @@ export const tasknestRouter = router({
           }
         }
 
-        await logActivity({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: input.title } });
         return { taskId: task.id, projectId: input.projectId };
       }),
 
@@ -657,6 +697,12 @@ export const tasknestRouter = router({
             if (m) assigneeNames[uid] = m.name || m.email || "Teammate";
           }
           updates.assigneeNames = assigneeNames;
+          // Notify only newly-assigned members, never the actor.
+          const previous = new Set(existing.assigneeIds);
+          const freshAssignees = input.assigneeIds.filter(userId => !previous.has(userId) && userId !== ctx.user.id);
+          for (const uid of freshAssignees) {
+            await createNotification({ userId: uid, type: "assigned", actorId: ctx.user.id, actorName: ctx.user.name || "Teammate", taskId: existing.id, taskTitle: existing.title, workspaceId: input.workspaceId });
+          }
         }
 
         if (input.labelIds !== undefined) {
@@ -672,7 +718,7 @@ export const tasknestRouter = router({
         }
 
         await updateTask(input.workspaceId, input.taskId, updates);
-        await logActivity({ wsId: input.workspaceId, projectId: existing.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated" });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: existing.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated" });
         return { taskId: input.taskId, projectId: existing.projectId };
       }),
 
@@ -684,7 +730,7 @@ export const tasknestRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Enter the exact task title to delete it." });
         }
         await softDeleteTask(input.workspaceId, input.taskId);
-        await logActivity({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "task_deleted", title: task.title } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "task_deleted", title: task.title } });
         return { deletedTaskId: input.taskId, projectId: task.projectId };
       }),
 
@@ -717,7 +763,7 @@ export const tasknestRouter = router({
         if (input.status === "done") {
           spawnedTaskId = await spawnRecurringTask(task, input.workspaceId, completedAt!);
         }
-        await logActivity({
+        await logActivityAndSideEffects({
           wsId: input.workspaceId,
           projectId: task.projectId,
           taskId: input.taskId,
@@ -733,11 +779,23 @@ export const tasknestRouter = router({
       .mutation(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const fs = db();
+        // The lane must be reordered as a whole: every task in the lane exactly once.
+        const lane = await tasksCol(fs, input.workspaceId)
+          .where("projectId", "==", input.projectId)
+          .where("status", "==", input.status)
+          .where("deletedAt", "==", null)
+          .get();
+        const laneIds = lane.docs.map((d) => d.id).sort();
+        const inputIds = [...input.orderedTaskIds].sort();
+        if (laneIds.join(",") !== inputIds.join(",")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Reorder must include every task in the lane exactly once." });
+        }
         const batch = fs.batch();
         input.orderedTaskIds.forEach((id, index) => {
           batch.update(tasksCol(fs, input.workspaceId).doc(id), { sortOrder: index * 10, updatedAt: Timestamp.now() });
         });
         await batch.commit();
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: input.projectId, taskId: input.orderedTaskIds[0], actorId: ctx.user.id, type: "task_updated", metadata: { action: "lane_reordered", status: input.status } });
         return { projectId: input.projectId, status: input.status };
       }),
 
@@ -790,7 +848,7 @@ export const tasknestRouter = router({
         for (const title of template.subtaskTitles ?? []) {
           await addSubtask(input.workspaceId, task.id, title);
         }
-        await logActivity({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: template.title, action: "applied_template", templateName: template.name } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: template.title, action: "applied_template", templateName: template.name } });
         return { taskId: task.id, projectId: input.projectId };
       }),
   }),
@@ -808,7 +866,28 @@ export const tasknestRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (input.taskId === input.dependsOnTaskId) throw new TRPCError({ code: "BAD_REQUEST", message: "A task cannot depend on itself." });
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
-        const { addDependency } = await import("../firestore/task");
+        const { addDependency, getTaskById } = await import("../firestore/task");
+        const [task, prerequisite] = await Promise.all([
+          getTaskById(input.workspaceId, input.taskId),
+          getTaskById(input.workspaceId, input.dependsOnTaskId),
+        ]);
+        if (!task || !prerequisite) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
+        if (task.projectId !== prerequisite.projectId) throw new TRPCError({ code: "BAD_REQUEST", message: "Dependencies must stay within the same project." });
+        // Cycle check: walk the prerequisite's own dependency chain; if it ever
+        // reaches this task, linking would create a circular chain.
+        const seen = new Set<string>();
+        let frontier = [input.dependsOnTaskId];
+        while (frontier.length) {
+          const next: string[] = [];
+          for (const id of frontier) {
+            if (id === input.taskId) throw new TRPCError({ code: "BAD_REQUEST", message: "This dependency would create a circular chain." });
+            if (seen.has(id)) continue;
+            seen.add(id);
+            const node = await getTaskById(input.workspaceId, id);
+            if (node) next.push(...node.dependencies);
+          }
+          frontier = next;
+        }
         await addDependency(input.workspaceId, input.taskId, input.dependsOnTaskId);
         return { dependencyId: input.dependsOnTaskId };
       }),
@@ -846,6 +925,8 @@ export const tasknestRouter = router({
       .mutation(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const fs = db();
+        const existing = await templatesCol(fs, input.workspaceId).where("name", "==", input.name).limit(1).get();
+        if (!existing.empty) throw new TRPCError({ code: "CONFLICT", message: "A template with this name already exists." });
         const ref = templatesCol(fs, input.workspaceId).doc();
         const now = Timestamp.now();
         const data: Omit<TemplateDoc, "id"> = {
@@ -892,6 +973,7 @@ export const tasknestRouter = router({
           minutes: input.minutes,
           note: input.note ?? null,
         });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: null, taskId: input.taskId, actorId: ctx.user.id, type: "task_updated", metadata: { action: "time_logged", minutes: input.minutes } });
         return { entryId: entry.id, minutes: input.minutes };
       }),
 
@@ -1172,7 +1254,7 @@ export const tasknestRouter = router({
             await createNotification({ userId: uid, type: "mentioned", actorId: ctx.user.id, actorName: ctx.user.name || "Teammate", taskId: task.id, taskTitle: task.title, workspaceId: input.workspaceId });
           }
         }
-        await logActivity({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "comment_added" });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "comment_added" });
         return { id: comment.id, body: input.body, createdAt: comment.createdAt, authorId: ctx.user.id, authorName: ctx.user.name, mentionedUserIds };
       }),
   }),
@@ -1201,7 +1283,7 @@ export const tasknestRouter = router({
           cloudinaryPublicId: input.storageKey,
           cloudinaryUrl: input.cloudinaryUrl,
         });
-        await logActivity({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
         return { id: attach.id, key: input.storageKey };
       }),
 
@@ -1223,7 +1305,7 @@ export const tasknestRouter = router({
           cloudinaryPublicId: stored.key,
           cloudinaryUrl: stored.url,
         });
-        await logActivity({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
+        await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: task.projectId, taskId: input.taskId, actorId: ctx.user.id, type: "attachment_added", metadata: { fileName: input.fileName } });
         return { id: attach.id, key: stored.key, url: stored.url };
       }),
   }),

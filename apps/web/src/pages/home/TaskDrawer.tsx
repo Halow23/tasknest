@@ -37,14 +37,36 @@ export function TaskDrawer({ taskId, workspaceId, members, fields, labels, proje
   const [editOpen, setEditOpen] = useState(false); const [deleteOpen, setDeleteOpen] = useState(false); const [comment, setComment] = useState(""); const [subtask, setSubtask] = useState(""); const [confirm, setConfirm] = useState("");
   const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [editLabelIds, setEditLabelIds] = useState<string[]>([]); const [editAssigneeId, setEditAssigneeId] = useState("unassigned"); const [recurrence, setRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none"); const [templateName, setTemplateName] = useState(""); const [priority, setPriority] = useState<Priority>("medium"); const [dueDate, setDueDate] = useState(""); const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const invalidate = async () => { await Promise.all([utils.tasknest.task.detail.invalidate({ taskId: taskId ?? "", workspaceId }), utils.tasknest.task.list.invalidate(), utils.tasknest.analytics.project.invalidate()]); };
+  const detailKey = { taskId: taskId ?? "", workspaceId } as const;
   const commentMutation = trpc.tasknest.comment.create.useMutation({
-    onSuccess: async () => { setComment(""); await invalidate(); toast.success("Comment shared with your team."); },
-    onError: error => toast.error(error.message),
+    onMutate: async ({ body }) => {
+      // Optimistically append the comment; a server error rolls back to the previous snapshot.
+      await utils.tasknest.task.detail.cancel(detailKey);
+      const previous = utils.tasknest.task.detail.getData(detailKey);
+      if (previous) {
+        const optimisticComment = { id: `optimistic-${Date.now()}`, taskId: taskId ?? "", workspaceId, body, createdAt: new Date(), updatedAt: new Date(), authorId: "me", authorName: "You" };
+        utils.tasknest.task.detail.setData(detailKey, { ...previous, comments: [...previous.comments, optimisticComment] });
+      }
+      return { previous };
+    },
+    onError: (_error, _input, context) => { if (context?.previous) utils.tasknest.task.detail.setData(detailKey, context.previous); toast.error("Could not share the comment."); },
+    onSettled: async () => { await invalidate(); },
+    onSuccess: async () => { setComment(""); toast.success("Comment shared with your team."); },
   });
   const subtaskMutation = trpc.tasknest.subtask.create.useMutation({ onSuccess: async () => { setSubtask(""); await invalidate(); }, onError: error => toast.error(error.message) });
   const toggleMutation = trpc.tasknest.subtask.toggle.useMutation({
-    onSuccess: invalidate,
-    onError: error => toast.error(error.message),
+    onMutate: async ({ subtaskId }) => {
+      // Optimistically flip the subtask checkbox; a server error rolls back.
+      await utils.tasknest.task.detail.cancel(detailKey);
+      const previous = utils.tasknest.task.detail.getData(detailKey);
+      if (previous) {
+        const nextSubtasks = previous.subtasks.map(item => (item.id === subtaskId ? { ...item, completed: !item.completed } : item));
+        utils.tasknest.task.detail.setData(detailKey, { ...previous, subtasks: nextSubtasks });
+      }
+      return { previous };
+    },
+    onError: (_error, _input, context) => { if (context?.previous) utils.tasknest.task.detail.setData(detailKey, context.previous); toast.error("Could not update the subtask."); },
+    onSettled: async () => { await invalidate(); },
   });
   const moveMutation = trpc.tasknest.task.move.useMutation({ onSuccess: invalidate, onError: error => toast.error(error.message) });
   const updateMutation = trpc.tasknest.task.update.useMutation({ onSuccess: async () => { setEditOpen(false); await invalidate(); toast.success("Task updated."); }, onError: error => toast.error(error.message) });

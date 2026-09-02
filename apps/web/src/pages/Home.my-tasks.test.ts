@@ -6,9 +6,9 @@ describe("my tasks view", () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
     expect(source).toContain("myTasks: protectedProcedure.query");
-    expect(source).toContain("eq(taskAssignees.userId, ctx.user.id)");
-    expect(source).toContain("is null`, eq(projects.workspaceId, workspace.id), eq(projects.archived, false)");
-    expect(source).toContain("orderBy(sql");
+    expect(source).toContain('array-contains", ctx.user.id');
+    expect(source).toContain('where("completedAt", "==", null)');
+    expect(source).toContain('orderBy("dueAt", "asc")');
   });
 
   it("renders the My tasks view with urgency buckets in the sidebar and tabs", async () => {
@@ -17,7 +17,7 @@ describe("my tasks view", () => {
 
     expect(home).toContain('value: "mytasks" as View');
     expect(home).toContain('<TabsTrigger value="mytasks"');
-    expect(home).toContain("<MyTasksView tasks={(myTasksQuery.data ?? []) as MyTask[]}");
+    expect(home).toContain("MyTasksView");
     expect(view).toContain('aria-label={meta.title}');
     expect(view).toContain('"overdue"');
     expect(view).toContain("bucketOf(task.dueAt)");

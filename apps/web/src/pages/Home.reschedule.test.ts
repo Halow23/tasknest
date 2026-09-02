@@ -14,15 +14,15 @@ describe("calendar drag-reschedule", () => {
     const view = await readFile(new URL("./home/CalendarView.tsx", import.meta.url), "utf8");
 
     expect(view).toContain("onDragOver={event => event.preventDefault()}");
-    expect(view).toContain('const id = Number(event.dataTransfer.getData("text/plain")); if (id) onReschedule(id, key);');
-    expect(view).toContain("onReschedule: (taskId: number, dateKey: string) => void;");
+    expect(view).toContain('const id = event.dataTransfer.getData("text/plain"); if (id) onReschedule(id, key);');
+    expect(view).toContain("onReschedule: (taskId: string, dateKey: string) => void;");
   });
 
   it("reschedules through task.update with optimistic rollback", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
 
     expect(home).toContain("const rescheduleTask = trpc.tasknest.task.update.useMutation({");
-    expect(home).toContain('onReschedule={(taskId, dateKey) => rescheduleTask.mutate({ taskId, dueAt: new Date(`${dateKey}T12:00:00`) })}');
+    expect(home).toContain('onReschedule={(taskId, dateKey) => rescheduleTask.mutate({ taskId, workspaceId: workspace.id, dueAt: new Date(`${dateKey}T12:00:00`) })}');
     expect(home).toContain("task.id === input.taskId ? { ...task, dueAt: input.dueAt ?? null } : task");
     expect(home).toContain("setData(taskListInput, context?.previousLists)");
   });

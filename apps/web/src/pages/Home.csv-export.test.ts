@@ -5,11 +5,11 @@ describe("csv export", () => {
   it("exposes a guarded task.export query with joined assignees and labels", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
-    expect(source).toContain("export: protectedProcedure.input(projectInput).query");
-    expect(source).toContain("isNull(tasks.deletedAt)");
-    expect(source).toContain("assigneesByTask.set(row.taskId");
-    expect(source).toContain("labelsByTask.set(row.taskId");
-    expect(source).toContain("projectName: project.name,");
+    expect(source).toContain("export: protectedProcedure");
+    expect(source).toContain("listTasks({ wsId: input.workspaceId, projectId: input.projectId })");
+    expect(source).toContain("assignees: Object.values(t.assigneeNames).join(\"; \")");
+    expect(source).toContain("labels: Object.values(t.labelNames).join(\"; \")");
+    expect(source).toContain("projectName: proj.name,");
   });
 
   it("downloads the task list from the board toolbar with proper escaping", async () => {

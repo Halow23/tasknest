@@ -8,6 +8,6 @@ describe("new task assignment", () => {
     expect(source).toContain('id="task-assignee"');
     expect(source).toContain("members.map(member => <SelectItem");
     expect(source).toContain("onValueChange={setTaskAssigneeId}");
-    expect(source).toContain('taskAssigneeId && taskAssigneeId !== "unassigned" ? [Number(taskAssigneeId)] : []');
+    expect(source).toContain('taskAssigneeId && taskAssigneeId !== "unassigned" ? [taskAssigneeId] : []');
   });
 });

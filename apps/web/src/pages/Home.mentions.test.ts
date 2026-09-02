@@ -14,9 +14,9 @@ describe("@mentions", () => {
   it("routes mentioned users a mentioned notification and others a commented one", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
-    expect(source).toContain('type: "commented", recipientIds: commentRecipients');
-    expect(source).toContain('type: "mentioned", recipientIds: mentionedUserIds');
-    expect(source).toContain(".filter(userId => !mentioned.has(userId))");
+    expect(source).toContain('const recipients = Array.from(new Set([...task.assigneeIds, task.createdById])).filter((id) => !mentioned.has(id) && id !== ctx.user.id);');
+    expect(source).toContain('type: "mentioned",');
+    expect(source).toContain("!mentioned.has(id)");
     expect(source).toContain("mentionedUserIds };");
   });
 

@@ -7,11 +7,12 @@ describe("reminders, digest, and purge cron", () => {
 
     expect(jobs).toContain("export async function runReminderSweep(");
     expect(jobs).toContain('const type = isOverdue ? "overdue" : "due_today";');
-    expect(jobs).toContain("if (unread.length > 0) { skipped += 1; continue; }");
+    expect(jobs).toContain("if (hasUnread) {");
     expect(jobs).toContain("export async function runDigestSweep(");
-    expect(jobs).toContain("if (overdue.length === 0 && dueToday.length === 0) { skipped += 1; continue; }");
+    expect(jobs).toContain("if (overdue.length === 0 && dueToday.length === 0) {");
     expect(jobs).toContain("export async function runPurgeSweep(");
-    expect(jobs).toContain("isNull(tasks.deletedAt), isNull(tasks.completedAt), lte(tasks.dueAt, endOfToday(now))");
+    expect(jobs).toContain('.where("deletedAt", "==", null)');
+    expect(jobs).toContain('.where("dueAt", "<=", endTs)');
   });
 
   it("sends the digest through Resend with a per-user-day idempotency key", async () => {

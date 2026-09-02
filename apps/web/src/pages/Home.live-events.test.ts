@@ -9,7 +9,7 @@ describe("real-time workspace events", () => {
     expect(emitter).toContain("export const workspaceEvents = new EventEmitter()");
     expect(emitter).toContain("export function publishWorkspaceEvent");
     expect(router).toContain("import { publishWorkspaceEvent } from \"../events\";");
-    expect(router).toContain("publishWorkspaceEvent({ workspaceId: input.workspaceId, type: input.type");
+    expect(router).toContain('publishWorkspaceEvent({ workspaceId: input.wsId, type: input.type');
   });
 
   it("streams authenticated workspace-scoped SSE events with heartbeats", async () => {

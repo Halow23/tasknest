@@ -1,4 +1,4 @@
-import type { DeniedSignInReason } from "../drizzle/schema";
+import type { DeniedSignInReason } from "./firestore/types";
 
 export type EmailAccessRules = {
   allowedDomains: string[];

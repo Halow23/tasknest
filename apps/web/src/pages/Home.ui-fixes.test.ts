@@ -27,6 +27,6 @@ describe("ui fixes round", () => {
 
     expect(drawer).toContain('<SelectTrigger id="edit-assignee"');
     expect(drawer).toContain('setEditAssigneeId(task.assignees[0] ? String(task.assignees[0].id) : "unassigned")');
-    expect(drawer).toContain('assigneeIds: editAssigneeId !== "unassigned" ? [Number(editAssigneeId)] : []');
+    expect(drawer).toContain('assigneeIds: editAssigneeId !== "unassigned" ? [editAssigneeId] : []');
   });
 });

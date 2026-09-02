@@ -17,18 +17,18 @@ describe("optimistic ui", () => {
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
 
     expect(drawer).toContain("await utils.tasknest.task.detail.cancel(detailKey);");
-    expect(drawer).toContain("const previousDetail = utils.tasknest.task.detail.getData(detailKey);");
-    expect(drawer).toContain("item.id === input.subtaskId ? { ...item, completed: input.completed } : item");
-    expect(drawer).toContain("const optimisticComment = { id: -Date.now()");
-    expect(drawer).toContain("[...existing.comments, optimisticComment]");
-    expect(drawer).toContain("setData(context.detailKey, context.previousDetail)");
+    expect(drawer).toContain("const previous = utils.tasknest.task.detail.getData(detailKey);");
+    expect(drawer).toContain("item.id === subtaskId ? { ...item, completed: !item.completed } : item");
+    expect(drawer).toContain('const optimisticComment = { id: `optimistic-${Date.now()}`');
+    expect(drawer).toContain("[...previous.comments, optimisticComment]");
+    expect(drawer).toContain("setData(detailKey, context.previous)");
   });
 
   it("skips self-authored SSE events to avoid clobbering optimistic state", async () => {
     const hook = await readFile(new URL("../hooks/useWorkspaceEvents.ts", import.meta.url), "utf8");
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
 
-    expect(hook).toContain("currentUserId?: number | null");
+    expect(hook).toContain("currentUserId?: string | null");
     expect(hook).toContain("if (payload.actorId != null && payload.actorId === options.currentUserId) return;");
     expect(home).toContain("currentUserId: user?.id });");
   });

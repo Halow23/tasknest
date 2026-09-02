@@ -5,7 +5,7 @@ describe("intra-lane reorder", () => {
   it("renumbers lane sortOrder transactionally with full-lane validation", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
-    expect(source).toContain("reorder: protectedProcedure.input(z.object({ projectId: z.number().int().positive(), status: taskStatusSchema, orderedTaskIds:");
+    expect(source).toContain('orderedTaskIds: z.array(z.string().min(1)).min(1).max(500)');
     expect(source).toContain("Reorder must include every task in the lane exactly once.");
     expect(source).toContain("sortOrder: index * 10");
     expect(source).toContain('action: "lane_reordered"');
@@ -16,7 +16,7 @@ describe("intra-lane reorder", () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
     const types = await readFile(new URL("./home/types.ts", import.meta.url), "utf8");
 
-    expect(board).toContain("reorderTask: { mutate: (input: { projectId: number; status: TaskSummary['status']; orderedTaskIds: number[] }) => void };");
+    expect(board).toContain("reorderTask: { mutate: (input: { projectId: string; workspaceId: string; status: TaskSummary['status']; orderedTaskIds: string[] }) => void };");
     expect(board).toContain("onDragOver={event => { event.preventDefault(); event.stopPropagation(); }}");
     expect(board).toContain("orderedTaskIds: next.map(item => item.id)");
     expect(home).toContain("const reorderTask = trpc.tasknest.task.reorder.useMutation({");

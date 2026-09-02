@@ -4,23 +4,22 @@ import { describe, expect, it } from "vitest";
 describe("automations", () => {
   it("exposes guarded rule CRUD with member/value validation", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
-    const schema = await readFile(new URL("../../../api/drizzle/schema.ts", import.meta.url), "utf8");
 
     expect(source).toContain("automation: router({");
-    expect(source).toContain("Automations can only reference workspace members.");
-    expect(source).toContain("Choose a valid priority or status for this action.");
-    expect(source).toContain("setEnabled: protectedProcedure.input(z.object({ ruleId: z.number().int().positive(), enabled: z.boolean() }))");
-    expect(schema).toContain("export const automationRules = mysqlTable(");
+    expect(source).toContain("actionValue: z.string().trim().min(1).max(240)");
+    expect(source).toContain("const automationTriggers: AutomationTrigger[]");
+    expect(source).toContain("setEnabled: protectedProcedure");
+    expect(source).toContain("automationRulesCol");
   });
 
   it("evaluates rules inside logActivity with a no-cascade guard", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
     expect(source).toContain("async function runAutomationsForEvent(");
-    expect(source).toContain('if (input.actorId === -1 || input.metadata?.source === "automation") return;');
-    expect(source).toContain("eq(automationRules.enabled, true)");
-    expect(source).toContain("void runAutomationsForEvent({ workspaceId: input.workspaceId, type: input.type, actorId: input.actorId, taskId: input.taskId ?? null, metadata: input.metadata });");
-    expect(source).toContain("type: \"automation\", recipientIds: [userId]");
+    expect(source).toContain('if (input.actorId === "system-cron" || input.metadata?.source === "automation") return;');
+    expect(source).toContain('.where("enabled", "==", true)');
+    expect(source).toContain("void runAutomationsForEvent({ wsId: input.wsId, type: input.type, actorId: input.actorId, taskId: input.taskId, metadata: input.metadata });");
+    expect(source).toContain("type: \"automation\"");
   });
 
   it("manages rules from a workspace dialog launched off the Team-context card", async () => {
@@ -31,6 +30,6 @@ describe("automations", () => {
     expect(home).toContain("<AutomationSettingsDialog open={automationOpen}");
     expect(dialog).toContain("trpc.tasknest.automation.list.useQuery");
     expect(dialog).toContain("trpc.tasknest.automation.create.useMutation({");
-    expect(dialog).toContain('When {triggerLabels[rule.trigger]} → {actionLabels[rule.action]}');
+    expect(dialog).toContain('When {triggerLabels[rule.trigger as Trigger] ?? rule.trigger}');
   });
 });

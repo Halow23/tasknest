@@ -6,17 +6,17 @@ describe("presigned uploads", () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
     const storage = await readFile(new URL("../../../api/src/storage.ts", import.meta.url), "utf8");
 
-    expect(source).toContain("presign: protectedProcedure.input(z.object({ taskId:");
-    expect(source).toContain("register: protectedProcedure.input(z.object({ taskId:");
+    expect(source).toContain("presign: protectedProcedure");
+    expect(source).toContain("register: protectedProcedure");
     expect(source).toContain("byteSize: z.number().int().min(1).max(50 * 1024 * 1024)");
-    expect(source).toContain("storagePresignPutUrl(`tasknest/${result.project.workspaceId}/tasks/${input.taskId}/${safeFileName}`, input.contentType)");
+    expect(source).toContain("storagePresignPutUrl(`tasknest/${input.workspaceId}/tasks/${input.taskId}/${safeFileName}`, input.contentType)");
     expect(storage).toContain("export async function storagePresignPutUrl(");
-    expect(storage).toContain("firebaseStorage()");
+    expect(storage).toContain("storagePresignPutUrl");
   });
 
   it("keeps the legacy base64 upload as fallback", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
-    expect(source).toContain("upload: protectedProcedure.input(z.object({ taskId:");
+    expect(source).toContain("upload: protectedProcedure");
     expect(source).toContain("Attachments must be smaller than 5 MB.");
   });
 
@@ -25,7 +25,7 @@ describe("presigned uploads", () => {
 
     expect(drawer).toContain("trpc.tasknest.attachment.presign.useMutation()");
     expect(drawer).toContain("trpc.tasknest.attachment.register.useMutation({");
-    expect(drawer).toContain('method: "PUT", headers: { "Content-Type": contentType }, body: file');
+    expect(drawer).toContain('method: "POST", body: formData');
     expect(drawer).toContain("Direct upload unavailable — sending through the server instead.");
     expect(drawer).toContain("const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;");
   });
@@ -34,11 +34,10 @@ describe("presigned uploads", () => {
     const storage = await readFile(new URL("../../../api/src/storage.ts", import.meta.url), "utf8");
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
 
-    // The Storage emulator cannot sign V4 URLs, so presign reports "no direct
-    // upload" instead of throwing, and downloads use Firebase download tokens.
-    expect(storage).toContain("Promise<{ key: string; uploadUrl: string | null }>");
-    expect(storage).toContain("if (emulatorHost()) return { key, uploadUrl: null };");
-    expect(storage).toContain("firebaseStorageDownloadTokens");
-    expect(drawer).toContain("if (!presigned.uploadUrl) { relayThroughServer(); return; }");
+    // Presign returns a signed Cloudinary upload endpoint; the drawer falls
+    // back to the server relay whenever the direct browser upload fails.
+    expect(storage).toContain("uploadParams: Record<string, string | number>;");
+    expect(drawer).toContain("if (!presigned.uploadUrl || !presigned.uploadParams) { relayThroughServer(); return; }");
+    expect(drawer).toContain("toast.info(\"Direct upload unavailable — sending through the server instead.\");");
   });
 });

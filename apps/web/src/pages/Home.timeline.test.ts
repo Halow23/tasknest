@@ -20,7 +20,7 @@ describe("timeline view", () => {
     expect(types).toContain('"timeline"');
     expect(home).toContain('{ label: "Timeline", icon: CalendarRange, value: "timeline" as View }');
     expect(home).toContain('<TabsTrigger value="timeline"');
-    expect(home).toContain('<TimelineView tasks={tasks} onOpenTask={setSelectedTaskId} />');
+    expect(home).toContain('<TimelineView tasks={tasks} onOpenTask={(taskId: string) => setSelectedTaskId(taskId)} />');
     expect(view).toContain('aria-label="Task timeline"');
     expect(view).toContain("timelineBarPercents(tasks)");
   });
