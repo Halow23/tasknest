@@ -9,7 +9,7 @@ export function WorkloadView({ tasks, assignments, members, onOpenTask }: {
   tasks: TaskSummary[];
   assignments: WorkloadAssignment[];
   members: WorkloadMember[];
-  onOpenTask: (taskId: number) => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   const entries = groupWorkload(tasks, assignments, members);
   return <div className="flex-1 overflow-auto p-5 lg:p-7">

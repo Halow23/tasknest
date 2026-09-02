@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { formatDate } from "./helpers";
 import { priorityStyle, type Priority } from "./types";
 
-export type MyTask = { id: number; title: string; status: string; priority: Priority; dueAt: Date | null; projectId: number; projectName: string; projectColor: string };
+export type MyTask = { id: string; title: string; status: string; priority: Priority; dueAt: Date | null; projectId: string; projectName: string; projectColor: string };
 
 function bucketOf(dueAt: Date | null): "overdue" | "today" | "week" | "later" | "none" {
   if (!dueAt) return "none";
@@ -29,7 +29,7 @@ const bucketMeta: Record<(typeof bucketOrder)[number], { title: string; note: st
 };
 
 /** Personal cross-project view: every task assigned to the current member that is not done. */
-export function MyTasksView({ tasks, onOpenTask }: { tasks: MyTask[]; onOpenTask: (taskId: number) => void }) {
+export function MyTasksView({ tasks, onOpenTask }: { tasks: MyTask[]; onOpenTask: (taskId: string) => void }) {
   const grouped = new Map<(typeof bucketOrder)[number], MyTask[]>();
   tasks.forEach(task => {
     const bucket = bucketOf(task.dueAt);

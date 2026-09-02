@@ -1,7 +1,7 @@
 export type KanbanStatus = "backlog" | "progress" | "review" | "done";
 
 export type NavigableTask = {
-  id: number;
+  id: string;
   status: KanbanStatus;
 };
 
@@ -11,7 +11,7 @@ const lanes: KanbanStatus[] = ["backlog", "progress", "review", "done"];
  * Return the task that directional board navigation should focus, if any.
  * Horizontal movement keeps the relative card position where possible.
  */
-export function getKanbanNextTaskId(tasks: NavigableTask[], currentTaskId: number | null, key: string) {
+export function getKanbanNextTaskId(tasks: NavigableTask[], currentTaskId: string | null, key: string) {
   const current = tasks.find(task => task.id === currentTaskId);
   if (!current) return null;
 

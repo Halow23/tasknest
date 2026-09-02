@@ -8,14 +8,14 @@ import { formatTime } from "@/pages/home/helpers";
 import { cn } from "@/lib/utils";
 
 type NotificationRow = {
-  id: number;
+  id: string;
   type: "assigned" | "commented" | "mentioned" | "due_today" | "overdue" | "automation";
   readAt: Date | null;
   createdAt: Date;
   actorName: string | null;
-  taskId: number | null;
+  taskId: string | null;
   taskTitle: string | null;
-  projectName: string | null;
+  projectName?: string | null;
 };
 
 function messageFor(row: NotificationRow) {
@@ -30,7 +30,7 @@ function messageFor(row: NotificationRow) {
 }
 
 /** Header bell with unread badge; opens a popover list and deep-links to the task on click. */
-export function NotificationBell({ onSelectTask }: { onSelectTask: (taskId: number) => void }) {
+export function NotificationBell({ onSelectTask }: { onSelectTask: (taskId: string) => void }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const list = trpc.tasknest.notification.list.useQuery(undefined, { enabled: open || true, refetchInterval: 30_000 });

@@ -9,24 +9,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 
 export type ProjectField = {
-  id: number;
+  id: string;
   name: string;
   type: "text" | "select" | "date";
   options: string[] | null;
 };
 
-export type CustomFieldValue = { fieldId: number; value: string };
+export type CustomFieldValue = { fieldId: string; value: string };
 
-export function toFieldValuesRecord(fields: ProjectField[], values: { fieldId: number; value: string | null }[] | undefined) {
-  const record: Record<number, string> = {};
+export function toFieldValuesRecord(fields: ProjectField[], values: { fieldId: string; value: string | null }[] | undefined) {
+  const record: Record<string, string> = {};
   (values ?? []).forEach(entry => {
     if (entry.value) record[entry.fieldId] = entry.value;
   });
   return record;
 }
 
-export function toFieldValuesInput(record: Record<number, string>): CustomFieldValue[] {
-  return Object.entries(record).map(([fieldId, value]) => ({ fieldId: Number(fieldId), value }));
+export function toFieldValuesInput(record: Record<string, string>): CustomFieldValue[] {
+  return Object.entries(record).map(([fieldId, value]) => ({ fieldId, value }));
 }
 
 function formatDisplayDate(value: string) {
@@ -59,8 +59,8 @@ function calendarKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function TaskCustomFields({ fields, values, onChange }: { fields: ProjectField[]; values: Record<number, string>; onChange: (next: Record<number, string>) => void }) {  if (!fields.length) return null;
-  const setValue = (fieldId: number, value: string) => onChange({ ...values, [fieldId]: value });
+export function TaskCustomFields({ fields, values, onChange }: { fields: ProjectField[]; values: Record<string, string>; onChange: (next: Record<string, string>) => void }) {  if (!fields.length) return null;
+  const setValue = (fieldId: string, value: string) => onChange({ ...values, [fieldId]: value });
   return <div className="space-y-4">
     {fields.map(field => <div key={field.id} data-field-id={field.id}>
       <Label htmlFor={`custom-field-${field.id}`}>{field.name}</Label>

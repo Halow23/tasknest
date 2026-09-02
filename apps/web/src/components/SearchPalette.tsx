@@ -4,14 +4,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { trpc } from "@/lib/trpc";
 import { formatDate } from "@/pages/home/helpers";
 
-type SearchResult = { id: number; title: string; status: string; priority: string; dueAt: Date | null; projectId: number; projectName: string; projectColor: string };
+type SearchResult = { id: string; title: string; status: string; priority: string; dueAt: Date | null; projectId: string; projectName?: string; projectColor?: string };
 
 /** ⌘K workspace-wide task search palette. Searches titles, descriptions, and comment bodies. */
 export function SearchPalette({ open, onOpenChange, workspaceId, onSelectTask }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceId: number;
-  onSelectTask: (taskId: number) => void;
+  workspaceId: string;
+  onSelectTask: (taskId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -22,7 +22,7 @@ export function SearchPalette({ open, onOpenChange, workspaceId, onSelectTask }:
   useEffect(() => { if (!open) { setQuery(""); setDebounced(""); } }, [open]);
   const search = trpc.tasknest.task.search.useQuery({ workspaceId, query: debounced }, { enabled: open && debounced.length > 0 });
 
-  const handleSelect = (taskId: number) => {
+  const handleSelect = (taskId: string) => {
     onOpenChange(false);
     onSelectTask(taskId);
   };

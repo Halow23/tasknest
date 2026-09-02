@@ -1,6 +1,6 @@
 import type { TaskSummary } from "./types";
 
-export type WorkloadMember = { id: number; name: string | null; email: string | null };
+export type WorkloadMember = { id: string; name: string | null; email: string | null };
 
 export type WorkloadEntry = {
   member: WorkloadMember;
@@ -11,11 +11,11 @@ export type WorkloadEntry = {
   tasks: TaskSummary[];
 };
 
-export type WorkloadAssignment = { taskId: number; userId: number; name: string | null; email: string | null };
+export type WorkloadAssignment = { taskId: string; userId: string; name: string | null; email: string | null };
 
 /** Inverts the flat assignee list into per-member load, ordered by open count (desc). */
 export function groupWorkload(tasks: TaskSummary[], assignments: WorkloadAssignment[], members: WorkloadMember[], now = new Date()): WorkloadEntry[] {
-  const byUser = new Map<number, WorkloadEntry>();
+  const byUser = new Map<string, WorkloadEntry>();
   const ensure = (member: WorkloadMember) => {
     let entry = byUser.get(member.id);
     if (!entry) { entry = { member, open: 0, done: 0, overdue: 0, highPriority: 0, tasks: [] }; byUser.set(member.id, entry); }

@@ -15,11 +15,11 @@ import { columns, priorityStyle, type Member, type TaskSummary } from './types';
 import type { DragEvent } from 'react';
 
 /** Sidebar trash row for a soft-deleted task with restore and delete-forever. */
-export function TrashTaskRow({ taskId, title, projectName }: { taskId: number; title: string; projectName: string }) {
+export function TrashTaskRow({ taskId, workspaceId, title, projectName }: { taskId: string; workspaceId: string; title: string; projectName: string }) {
   const utils = trpc.useUtils();
   const restore = trpc.tasknest.task.restore.useMutation({ onSuccess: () => { utils.tasknest.trash.list.invalidate(); utils.tasknest.task.list.invalidate(); toast.success("Task restored."); }, onError: error => toast.error(error.message) });
   const purge = trpc.tasknest.trash.purgeTask.useMutation({ onSuccess: () => { utils.tasknest.trash.list.invalidate(); toast.success("Task permanently deleted."); }, onError: error => toast.error(error.message) });
-  return <div className="flex h-8 items-center gap-2 rounded-xl px-2.5 text-[11px] font-bold text-[#9BAAB3]"><span className="min-w-0 flex-1 truncate" title={`${title} · ${projectName}`}>{title}</span><button onClick={() => restore.mutate({ taskId })} className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold text-[#4B92BB] hover:bg-[#F4F8FA]" aria-label={`Restore task ${title}`}>Restore</button><button onClick={() => purge.mutate({ taskId })} className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold text-[#D44A3F] hover:bg-[#FFF0EE]" aria-label={`Delete forever task ${title}`}>Delete</button></div>;
+  return <div className="flex h-8 items-center gap-2 rounded-xl px-2.5 text-[11px] font-bold text-[#9BAAB3]"><span className="min-w-0 flex-1 truncate" title={`${title} · ${projectName}`}>{title}</span><button onClick={() => restore.mutate({ taskId, workspaceId })} className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold text-[#4B92BB] hover:bg-[#F4F8FA]" aria-label={`Restore task ${title}`}>Restore</button><button onClick={() => purge.mutate({ taskId, workspaceId })} className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold text-[#D44A3F] hover:bg-[#FFF0EE]" aria-label={`Delete forever task ${title}`}>Delete</button></div>;
 }
 
 export function WorkspaceSetup({ name }: { name: string | null | undefined }) {

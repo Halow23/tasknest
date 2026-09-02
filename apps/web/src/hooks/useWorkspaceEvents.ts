@@ -16,7 +16,7 @@ import { getFirebaseAuth } from "@/lib/firebase";
  * rejecting a stale one the stream errors and we reconnect with a fresh
  * token (getIdToken refreshes as needed).
  */
-export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: number | null }) {
+export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: string | null }) {
   const queryClient = useQueryClient();
   const utils = trpc.useUtils();
 
@@ -35,7 +35,7 @@ export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: 
       source = new EventSource(`${base}/api/events?token=${encodeURIComponent(token)}`);
       source.onmessage = event => {
         try {
-          const payload = JSON.parse(event.data) as { type: string; taskId?: number | null; actorId?: number | null };
+          const payload = JSON.parse(event.data) as { type: string; taskId?: string | null; actorId?: string | null };
           if (payload.type === "connected") return;
           if (payload.actorId != null && payload.actorId === options.currentUserId) return;
           queryClient.invalidateQueries({ queryKey: [["tasknest", "task", "list"]] });

@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
-export type WorkspaceLabel = { id: number; name: string; color: string };
+export type WorkspaceLabel = { id: string; name: string; color: string };
 
 export function LabelChip({ label, onRemove }: { label: WorkspaceLabel; onRemove?: () => void }) {
   return <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold" style={{ backgroundColor: `${label.color}1A`, color: label.color }}>
@@ -18,19 +18,19 @@ export function LabelChip({ label, onRemove }: { label: WorkspaceLabel; onRemove
 }
 
 /** Multi-select label picker with inline creation. Used in task create/edit dialogs. */
-export function LabelPicker({ workspaceId, selectedIds, onChange }: { workspaceId: number; selectedIds: number[]; onChange: (ids: number[]) => void }) {
+export function LabelPicker({ workspaceId, selectedIds, onChange }: { workspaceId: string; selectedIds: string[]; onChange: (ids: string[]) => void }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const labelsQuery = trpc.tasknest.label.list.useQuery({ workspaceId }, { enabled: open && workspaceId > 0 });
-  const labels = labelsQuery.data ?? [];
+  const labelsQuery = trpc.tasknest.label.list.useQuery({ workspaceId }, { enabled: open && Boolean(workspaceId) });
+  const labels = (labelsQuery.data ?? []) as WorkspaceLabel[];
   const selected = useMemo(() => labels.filter(label => selectedIds.includes(label.id)), [labels, selectedIds]);
   const invalidate = () => utils.tasknest.label.list.invalidate({ workspaceId });
   const createLabel = trpc.tasknest.label.create.useMutation({
     onSuccess: async created => { setNewName(""); await invalidate(); onChange([...selectedIds, created.labelId]); toast.success(`Label “${created.name}” created.`); },
     onError: error => toast.error(error.message),
   });
-  const toggle = (labelId: number) => onChange(selectedIds.includes(labelId) ? selectedIds.filter(id => id !== labelId) : [...selectedIds, labelId]);
+  const toggle = (labelId: string) => onChange(selectedIds.includes(labelId) ? selectedIds.filter(id => id !== labelId) : [...selectedIds, labelId]);
   const submit = () => {
     const name = newName.trim();
     if (!name) { toast.error("Give the label a name."); return; }

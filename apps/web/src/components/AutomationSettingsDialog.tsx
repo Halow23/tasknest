@@ -19,8 +19,8 @@ const actionLabels: Record<Action, string> = { assign_user: "Assign to member", 
 export function AutomationSettingsDialog({ open, onOpenChange, workspaceId, members }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceId: number;
-  members: { id: number; name: string | null; email: string | null }[];
+  workspaceId: string;
+  members: { id: string; name: string | null; email: string | null }[];
 }) {
   const utils = trpc.useUtils();
   const rulesQuery = trpc.tasknest.automation.list.useQuery({ workspaceId }, { enabled: open });
@@ -51,13 +51,13 @@ export function AutomationSettingsDialog({ open, onOpenChange, workspaceId, memb
       <div className="space-y-2">
         {rulesQuery.isLoading && <p className="text-[11px] text-[#718A9A]">Loading rules…</p>}
         {(rulesQuery.data ?? []).length === 0 && !rulesQuery.isLoading && <p className="rounded-xl border border-dashed border-[#D7E5EB] bg-[#F8FBFC] p-4 text-center text-[11px] text-[#718A9A]">No automations yet. Create one below to put routine work on autopilot.</p>}
-        {(rulesQuery.data ?? []).map(rule => <div key={rule.id} className="flex items-center gap-3 rounded-xl border border-[#E2EBF0] bg-white p-3">
+        {((rulesQuery.data ?? []) as any[]).map(rule => <div key={rule.id} className="flex items-center gap-3 rounded-xl border border-[#E2EBF0] bg-white p-3">
           <Bot className="h-4 w-4 shrink-0 text-[#2680B5]" />
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-[#294A62]">{rule.name}</p><p className="mt-0.5 truncate text-[10px] font-semibold text-[#718A9A]">When {triggerLabels[rule.trigger]} → {actionLabels[rule.action]} · {rule.actionValue}</p></div>
-          <button type="button" onClick={() => setEnabled.mutate({ ruleId: rule.id, enabled: !rule.enabled })} className="shrink-0" aria-label={`${rule.enabled ? "Disable" : "Enable"} automation ${rule.name}`}>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-[#294A62]">{rule.name}</p><p className="mt-0.5 truncate text-[10px] font-semibold text-[#718A9A]">When {triggerLabels[rule.trigger as Trigger] ?? rule.trigger} → {actionLabels[rule.action as Action] ?? rule.action} · {rule.actionValue}</p></div>
+          <button type="button" onClick={() => setEnabled.mutate({ ruleId: rule.id, workspaceId, enabled: !rule.enabled })} className="shrink-0" aria-label={`${rule.enabled ? "Disable" : "Enable"} automation ${rule.name}`}>
             <Badge variant="outline" className={`h-5 cursor-pointer border-0 px-1.5 text-[9px] font-extrabold ${rule.enabled ? "bg-[#E5F5EA] text-[#3E7A52]" : "bg-[#F0F5F7] text-[#8A9BA6]"}`}>{rule.enabled ? "ON" : "OFF"}</Badge>
           </button>
-          <Button type="button" size="icon" variant="ghost" onClick={() => deleteRule.mutate({ ruleId: rule.id })} aria-label={`Delete automation ${rule.name}`}><Trash2 className="h-3.5 w-3.5 text-[#D44A3F]" /></Button>
+          <Button type="button" size="icon" variant="ghost" onClick={() => deleteRule.mutate({ ruleId: rule.id, workspaceId })} aria-label={`Delete automation ${rule.name}`}><Trash2 className="h-3.5 w-3.5 text-[#D44A3F]" /></Button>
         </div>)}
       </div>
       <section className="space-y-2 rounded-xl border border-[#DCE8EE] bg-[#F8FBFC] p-3" aria-label="Create automation">

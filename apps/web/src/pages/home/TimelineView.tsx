@@ -5,7 +5,7 @@ import { timelineBarPercents, type TimelineTask } from "./timelineMath";
 import { priorityStyle } from "./types";
 
 /** Horizontal timeline: one bar per task spanning creation → due date. */
-export function TimelineView({ tasks, onOpenTask }: { tasks: TimelineTask[]; onOpenTask: (taskId: number) => void }) {
+export function TimelineView({ tasks, onOpenTask }: { tasks: TimelineTask[]; onOpenTask: (taskId: string) => void }) {
   const { bars } = timelineBarPercents(tasks);
   return <div className="flex-1 overflow-auto p-5 lg:p-7">
     <h2 className="font-['DM_Serif_Display'] text-3xl">Work over time.</h2>

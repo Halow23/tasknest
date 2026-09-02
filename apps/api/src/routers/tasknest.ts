@@ -267,7 +267,8 @@ export const tasknestRouter = router({
       ]);
       const availableProjects = allProjects.filter((p) => !p.archived);
       const archivedProjects = allProjects.filter((p) => p.archived);
-      return { workspace: ws, members: ws.members, projects: availableProjects, labels, archivedProjects };
+      const members = ws.members.map((m) => ({ id: m.userId, userId: m.userId, name: m.name, email: m.email, role: m.role, joinedAt: m.joinedAt }));
+      return { workspace: ws, members, projects: availableProjects, labels, archivedProjects };
     }),
 
     create: protectedProcedure
@@ -490,8 +491,21 @@ export const tasknestRouter = router({
           labelId: input.labelId ?? undefined,
           dueBucket: input.dueBucket,
         });
-        const labels = await getLabels(input.workspaceId);
-        return { tasks, assignees: ws.members, labels, project: proj };
+        const memberRows = ws.members.map((m) => ({ id: m.userId, name: m.name, email: m.email }));
+        const assignees = tasks.flatMap((task) =>
+          task.assigneeIds.map((uid) => {
+            const member = ws.members.find((m) => m.userId === uid);
+            return { taskId: task.id, id: uid, name: member?.name ?? null, email: member?.email ?? null };
+          }),
+        );
+        const allLabels = await getLabels(input.workspaceId);
+        const labelRows = tasks.flatMap((task) =>
+          task.labelIds.map((labelId) => {
+            const label = allLabels.find((l) => l.id === labelId);
+            return { taskId: task.id, id: labelId, name: label?.name ?? "", color: label?.color ?? "#38A9F2" };
+          }),
+        );
+        return { tasks, assignees, labels: labelRows, project: proj };
       }),
 
     search: protectedProcedure
@@ -532,6 +546,7 @@ export const tasknestRouter = router({
         const detail = await getTaskDetail(input.workspaceId, input.taskId);
         const openDeps = await getOpenDependencies(input.workspaceId, input.taskId);
         const proj = await getProjectById(input.workspaceId, detail.task.projectId);
+        const fieldsById = new Map((proj?.fields ?? []).map((f) => [f.id, f]));
         return {
           ...detail.task,
           project: proj,
@@ -540,7 +555,7 @@ export const tasknestRouter = router({
           comments: detail.comments,
           attachments: detail.attachments.map((a) => ({ ...a, storageUrl: storageGetUrl(a.cloudinaryUrl) })),
           activity: detail.activity,
-          fieldValues: Object.entries(detail.task.fieldValues).map(([fieldId, value]) => ({ fieldId, value })),
+          fieldValues: Object.entries(detail.task.fieldValues).map(([fieldId, value]) => ({ fieldId, value, name: fieldsById.get(fieldId)?.name ?? "Field", type: fieldsById.get(fieldId)?.type ?? "text" })),
           labels: Object.entries(detail.task.labelNames).map(([id, name]) => ({ id, name, color: detail.task.labelColors[id] ?? "#38A9F2" })),
           openDependencies: openDeps,
           timeEntries: detail.timeEntries,
@@ -738,6 +753,46 @@ export const tasknestRouter = router({
         .get();
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     }),
+
+    applyTemplate: protectedProcedure
+      .input(z.object({
+        workspaceId: z.string().min(1),
+        projectId: z.string().min(1),
+        templateId: z.string().min(1),
+        dueAt: z.date().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const ws = await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+        const proj = await getProjectById(input.workspaceId, input.projectId);
+        if (!proj || proj.deletedAt) throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+        const fs = db();
+        const tmplSnap = await templatesCol(fs, input.workspaceId).doc(input.templateId).get();
+        if (!tmplSnap.exists) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
+        const template = { id: tmplSnap.id, ...tmplSnap.data() } as TemplateDoc;
+
+        const allLabels = await getLabels(input.workspaceId);
+        const validLabels = allLabels.filter((label) => template.labelIds.includes(label.id));
+        const labelMap = resolveLabelMap(allLabels, validLabels.map((label) => label.id));
+
+        const task = await createTask({
+          wsId: input.workspaceId,
+          projectId: input.projectId,
+          title: template.title,
+          description: template.description ?? undefined,
+          priority: template.priority,
+          recurrenceRule: template.recurrenceRule,
+          dueAt: input.dueAt ?? null,
+          createdById: ctx.user.id,
+          labelIds: labelMap.ids,
+          labelNames: labelMap.names,
+          labelColors: labelMap.colors,
+        });
+        for (const title of template.subtaskTitles ?? []) {
+          await addSubtask(input.workspaceId, task.id, title);
+        }
+        await logActivity({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: template.title, action: "applied_template", templateName: template.name } });
+        return { taskId: task.id, projectId: input.projectId };
+      }),
   }),
 
   dependency: router({
@@ -906,14 +961,17 @@ export const tasknestRouter = router({
       .input(workspaceInput)
       .query(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
-        const [tasks, projs] = await Promise.all([
-          listDeletedTasks(input.workspaceId),
-          getActiveProjects(input.workspaceId), // we'll filter below
-        ]);
         const fs = db();
-        const delProjsSnap = await projectsCol(fs, input.workspaceId).where("deletedAt", "!=", null).limit(100).get();
-        const delProjs = delProjsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        return { tasks, projects: delProjs };
+        const [deletedTasks, activeProjsSnap, delProjsSnap] = await Promise.all([
+          listDeletedTasks(input.workspaceId),
+          getDocs<ProjectDoc>(projectsCol(fs, input.workspaceId)),
+          projectsCol(fs, input.workspaceId).where("deletedAt", "!=", null).limit(100).get(),
+        ]);
+        const allProjs = [...activeProjsSnap, ...delProjsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ProjectDoc))];
+        const projNameById = new Map(allProjs.map((p) => [p.id, p.name]));
+        const tasks = deletedTasks.map((t) => ({ ...t, projectName: projNameById.get(t.projectId) ?? "Unknown project" }));
+        const projects = delProjsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+        return { tasks, projects };
       }),
 
     purgeTask: protectedProcedure

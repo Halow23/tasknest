@@ -3,7 +3,7 @@ import type { TaskSummary } from "./types";
 export type TimelineTask = TaskSummary & { createdAt?: Date | null; completedAt?: Date | null; blockedByCount?: number };
 
 export type TimelineBar = {
-  taskId: number;
+  taskId: string;
   title: string;
   status: TaskSummary["status"];
   priority: TaskSummary["priority"];

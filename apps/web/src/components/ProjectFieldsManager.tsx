@@ -16,14 +16,14 @@ const fieldTypeLabels: Record<FieldType, string> = { text: "Text", select: "Drop
  * Per-project custom field management, rendered inside the project Edit dialog.
  * Field definitions apply to every task in the project.
  */
-export function ProjectFieldsManager({ projectId }: { projectId: number }) {
+export function ProjectFieldsManager({ projectId, workspaceId }: { projectId: string; workspaceId: string }) {
   const utils = trpc.useUtils();
-  const fieldsQuery = trpc.tasknest.field.list.useQuery({ projectId }, { enabled: projectId > 0 });
+  const fieldsQuery = trpc.tasknest.field.list.useQuery({ projectId, workspaceId }, { enabled: Boolean(projectId) });
   const fields = (fieldsQuery.data ?? []).map(field => ({ ...field, options: Array.isArray(field.options) ? (field.options as string[]) : null }));
   const [newFieldName, setNewFieldName] = useState("");
   const [newFieldType, setNewFieldType] = useState<FieldType>("text");
   const [newFieldOptions, setNewFieldOptions] = useState("");
-  const invalidate = () => utils.tasknest.field.list.invalidate({ projectId });
+  const invalidate = () => utils.tasknest.field.list.invalidate({ projectId, workspaceId });
   const createField = trpc.tasknest.field.create.useMutation({
     onSuccess: async () => { setNewFieldName(""); setNewFieldOptions(""); await invalidate(); toast.success("Custom field added to this project."); },
     onError: error => toast.error(error.message),
@@ -38,7 +38,7 @@ export function ProjectFieldsManager({ projectId }: { projectId: number }) {
     if (!name) { toast.error("Give the custom field a name."); return; }
     const options = newFieldType === "select" ? newFieldOptions.split(",").map(option => option.trim()).filter(Boolean) : undefined;
     if (newFieldType === "select" && (!options || options.length === 0)) { toast.error("List at least one dropdown option, separated by commas."); return; }
-    createField.mutate({ projectId, name, type: newFieldType, options });
+    createField.mutate({ projectId, workspaceId, name, type: newFieldType, options });
   };
 
   return <section className="rounded-xl border border-[#DCE8EE] bg-[#F8FBFC] p-4" aria-label="Project custom fields">
@@ -52,7 +52,7 @@ export function ProjectFieldsManager({ projectId }: { projectId: number }) {
       {fields.map(field => <div key={field.id} className="flex items-center gap-3 rounded-lg border border-[#E2EBF0] bg-white p-3">
         <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-[#294A62]">{field.name}</p>{field.type === "select" && field.options?.length ? <p className="mt-0.5 truncate text-[10px] text-[#78909F]">{field.options.join(" · ")}</p> : null}</div>
         <Badge variant="outline" className="h-5 border-0 bg-[#EEF6FB] px-1.5 text-[10px] font-bold capitalize text-[#31779F]">{fieldTypeLabels[field.type] ?? field.type}</Badge>
-        <Button type="button" size="icon" variant="ghost" disabled={deleteField.isPending} onClick={() => deleteField.mutate({ fieldId: field.id })} aria-label={`Delete custom field ${field.name}`}><Trash2 className="h-3.5 w-3.5 text-[#D44A3F]" /></Button>
+        <Button type="button" size="icon" variant="ghost" disabled={deleteField.isPending} onClick={() => deleteField.mutate({ fieldId: field.id, projectId, workspaceId })} aria-label={`Delete custom field ${field.name}`}><Trash2 className="h-3.5 w-3.5 text-[#D44A3F]" /></Button>
       </div>)}
     </div>
     <div className="mt-4 space-y-2 rounded-lg border border-[#DDEAF0] bg-white p-3">
