@@ -1,6 +1,4 @@
 {
   "buildCommand": "pnpm --filter @tasknest/web build",
-  "outputDirectory": "apps/web/dist",
-  "framework": "vite",
-  "installCommand": "pnpm install"
+  "outputDirectory": "dist"
 }
