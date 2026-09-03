@@ -1,4 +1,0 @@
-{
-  "buildCommand": "pnpm --filter @tasknest/web build",
-  "outputDirectory": "dist"
-}
