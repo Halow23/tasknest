@@ -45,6 +45,18 @@ export function useAuth(options?: UseAuthOptions) {
     enabled: firebaseReady,
   });
 
+  // Refetch the server's user record whenever the Firebase identity changes.
+  // meQuery is enabled from the first onAuthStateChanged (which reports the
+  // signed-out state), so its cached null result survives a later popup
+  // sign-in: the query is already enabled and nothing marks it stale, leaving
+  // the app stuck on the login screen until a manual reload. Invalidating on
+  // every uid change (including sign-out) keeps the server verdict in step
+  // with the Firebase session.
+  useEffect(() => {
+    if (!firebaseReady) return;
+    void utils.auth.me.invalidate();
+  }, [firebaseReady, firebaseUser?.uid, utils]);
+
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
       utils.auth.me.setData(undefined, null);

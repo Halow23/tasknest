@@ -7,7 +7,7 @@
  */
 
 import { firestore } from "../_core/firebase";
-import type { CollectionReference, DocumentReference, Query } from "firebase-admin/firestore";
+import type { CollectionReference, DocumentReference, Query, QuerySnapshot } from "firebase-admin/firestore";
 
 // ── Re-export the firestore instance ────────────────────────────────────────
 
@@ -111,17 +111,56 @@ export function deniedSignInEventsCol(fs: FS): CollectionReference {
 
 // ── Query helpers ────────────────────────────────────────────────────────────
 
+/**
+ * Recursively convert every Firestore Timestamp in a document to a Date.
+ *
+ * The app layer types these fields as `Date` (see firestore/types.ts), and the
+ * web app calls `new Date(value)` / Intl.DateTimeFormat on them. A raw
+ * Timestamp serialises over tRPC as `{_seconds, _nanoseconds}`, which
+ * `new Date()` cannot parse — it yields Invalid Date and Intl throws
+ * "RangeError: Invalid time value". Converting centrally here means no query
+ * call site can leak a Timestamp by forgetting to map its fields.
+ */
+function convertTimestamps(value: unknown): unknown {
+  if (value instanceof Timestamp) return value.toDate();
+  if (Array.isArray(value)) return value.map(convertTimestamps);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = convertTimestamps(entry);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Convert a raw document into a plain object with `id` injected and every
+ * Timestamp replaced by a Date. Use this whenever a call site reads a document
+ * directly (`ref.get()` / `query.get()`) instead of going through `getDocs`.
+ */
+export function toPlainDoc<T>(id: string, raw: unknown): T & { id: string } {
+  return { id, ...(convertTimestamps(raw) as object) } as T & { id: string };
+}
+
+/** Map a snapshot to plain objects with `id` injected and Dates normalised. */
+function toPlainDocs<T>(snap: QuerySnapshot): (T & { id: string })[] {
+  return snap.docs.map(
+    (doc) => ({ id: doc.id, ...(convertTimestamps(doc.data()) as object) } as T & { id: string }),
+  );
+}
+
 /** Fetch all docs from a query as plain objects with `id` injected. */
 export async function getDocs<T>(query: Query | CollectionReference): Promise<(T & { id: string })[]> {
   const snap = await query.get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as T & { id: string }));
+  return toPlainDocs<T>(snap);
 }
 
 /** Fetch a single document, returning null if it doesn't exist. */
 export async function getDoc<T>(ref: DocumentReference): Promise<(T & { id: string }) | null> {
   const snap = await ref.get();
   if (!snap.exists) return null;
-  return { id: snap.id, ...snap.data() } as T & { id: string };
+  return { id: snap.id, ...(convertTimestamps(snap.data()) as object) } as T & { id: string };
 }
 
 /**

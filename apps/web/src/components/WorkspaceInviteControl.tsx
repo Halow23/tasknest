@@ -9,8 +9,13 @@ import { trpc } from "@/lib/trpc";
 
 const inviteTokenPattern = /^[a-f0-9]{32}$/i;
 
-function formatExpiry(value: Date) {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+function formatExpiry(value: Date | { _seconds: number } | null | undefined) {
+  if (!value) return "—";
+  // Tolerate a Firestore Timestamp shape ({_seconds}) as well as a Date: the
+  // API converts these, but a malformed value must not crash the whole page.
+  const date = value instanceof Date ? value : new Date((value as { _seconds: number })._seconds * 1000);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
 export function WorkspaceInviteControl() {

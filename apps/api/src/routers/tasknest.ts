@@ -21,6 +21,7 @@ import {
   timeEntriesCol,
   toDate,
   toDateOrNull,
+  toPlainDoc,
   usersCol,
   workspaceDoc,
   workspacesCol,
@@ -69,6 +70,7 @@ import type {
   AutomationRuleDoc,
   AutomationTrigger,
   EmbeddedSubtask,
+  InviteDoc,
   LabelDoc,
   ProjectDoc,
   ProjectField,
@@ -262,7 +264,7 @@ async function runAutomationsForEvent(input: {
     if (!task || task.deletedAt) return;
 
     for (const d of snap.docs) {
-      const rule = { id: d.id, ...d.data() } as AutomationRuleDoc;
+      const rule = toPlainDoc<AutomationRuleDoc>(d.id, d.data());
       const [actionKind, ...actionRest] = rule.action.split(":");
       const actionValue = actionRest.join(":");
       if (actionKind === "assign_user") {
@@ -345,7 +347,7 @@ export const tasknestRouter = router({
           .orderBy("createdAt", "desc")
           .limit(100)
           .get();
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        return snap.docs.map((d) => toPlainDoc<InviteDoc>(d.id, d.data()));
       }),
 
     revokeInvite: protectedProcedure
@@ -809,7 +811,16 @@ export const tasknestRouter = router({
         .where("completedAt", "==", null)
         .orderBy("dueAt", "asc")
         .get();
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const tasks = snap.docs.map((d) => toPlainDoc<TaskDoc>(d.id, d.data()));
+      // The My Tasks view labels each row with its project, so resolve the
+      // project name and colour here rather than leaving them undefined.
+      const projects = await getDocs<ProjectDoc>(projectsCol(fs, ws.id));
+      const projectById = new Map(projects.map((p) => [p.id, p]));
+      return tasks.map((task) => ({
+        ...task,
+        projectName: projectById.get(task.projectId)?.name ?? "Unknown project",
+        projectColor: projectById.get(task.projectId)?.color ?? "#38A9F2",
+      }));
     }),
 
     applyTemplate: protectedProcedure
@@ -908,7 +919,7 @@ export const tasknestRouter = router({
       .query(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const snap = await templatesCol(db(), input.workspaceId).orderBy("name", "asc").get();
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        return snap.docs.map((d) => toPlainDoc<TemplateDoc>(d.id, d.data()));
       }),
 
     create: protectedProcedure
@@ -992,7 +1003,7 @@ export const tasknestRouter = router({
       .query(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const snap = await automationRulesCol(db(), input.workspaceId).orderBy("createdAt", "asc").get();
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        return snap.docs.map((d) => toPlainDoc<AutomationRuleDoc>(d.id, d.data()));
       }),
 
     create: protectedProcedure
@@ -1049,10 +1060,10 @@ export const tasknestRouter = router({
           getDocs<ProjectDoc>(projectsCol(fs, input.workspaceId)),
           projectsCol(fs, input.workspaceId).where("deletedAt", "!=", null).limit(100).get(),
         ]);
-        const allProjs = [...activeProjsSnap, ...delProjsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ProjectDoc))];
+        const allProjs = [...activeProjsSnap, ...delProjsSnap.docs.map((d) => toPlainDoc<ProjectDoc>(d.id, d.data()))];
         const projNameById = new Map(allProjs.map((p) => [p.id, p.name]));
         const tasks = deletedTasks.map((t) => ({ ...t, projectName: projNameById.get(t.projectId) ?? "Unknown project" }));
-        const projects = delProjsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+        const projects = delProjsSnap.docs.map((d) => toPlainDoc<ProjectDoc>(d.id, d.data()));
         return { tasks, projects };
       }),
 

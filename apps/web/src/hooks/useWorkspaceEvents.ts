@@ -24,15 +24,30 @@ export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: 
     if (!options.enabled || typeof window === "undefined") return;
     let source: EventSource | null = null;
     let closed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+
+    const disconnect = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      source?.close();
+      source = null;
+    };
 
     const connect = async () => {
       if (closed) return;
+      disconnect();
       const { currentUser } = getFirebaseAuth();
       const token = currentUser ? await currentUser.getIdToken() : null;
       if (closed || !token) return;
 
       const base = import.meta.env.VITE_API_URL?.replace(/\/api\/trpc$/, "") ?? "";
       source = new EventSource(`${base}/api/events?token=${encodeURIComponent(token)}`);
+      source.onopen = () => {
+        attempts = 0;
+      };
       source.onmessage = event => {
         try {
           const payload = JSON.parse(event.data) as { type: string; taskId?: string | null; actorId?: string | null };
@@ -53,18 +68,38 @@ export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: 
       source.onerror = () => {
         // Drop the connection and re-open with a (possibly refreshed) token;
         // if sign-out caused the error, connect() exits early instead.
-        source?.close();
-        source = null;
-        if (!closed) {
-          setTimeout(() => { void connect(); }, 3000);
-        }
+        disconnect();
+        if (closed) return;
+        // Back off so a persistent failure (401/404) does not hammer the API
+        // every few seconds. Reset to 0 whenever a connection succeeds.
+        attempts += 1;
+        const delay = Math.min(3000 * 2 ** (attempts - 1), 60_000);
+        retryTimer = setTimeout(() => { void connect(); }, delay);
       };
     };
+
+    // Back/forward cache: when the page is frozen the browser tears down the
+    // stream, and a restored page keeps a dead EventSource (readyState CLOSED)
+    // that never fires again. Close on pagehide and re-open on a persisted
+    // pageshow so live updates resume after back/forward navigation.
+    const onPageHide = () => {
+      disconnect();
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && !closed) {
+        attempts = 0;
+        void connect();
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
 
     void connect();
     return () => {
       closed = true;
-      source?.close();
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      disconnect();
     };
   }, [options.enabled, options.currentUserId, queryClient, utils.tasknest.task.detail]);
 }

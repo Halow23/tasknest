@@ -13,6 +13,7 @@ import {
   deniedSignInEventsCol,
   db,
   getDocs,
+  toDate,
   toDateOrNull,
 } from "./db";
 import {
@@ -58,7 +59,16 @@ export async function getManagedAccessRules() {
     getDocs<AllowedDomainDoc>(allowedDomainsCol(fs).orderBy("domain")),
     getDocs<AllowedEmailDoc>(allowedEmailsCol(fs).orderBy("email")),
   ]);
-  return { domains, emails };
+  // Firestore returns Timestamps; convert so the admin UI receives real Dates
+  // (it calls new Date(...) on these, which rejects a Timestamp object).
+  return {
+    domains: domains.map((d) => ({ ...d, createdAt: toDate(d.createdAt) })),
+    emails: emails.map((d) => ({
+      ...d,
+      expiresAt: toDateOrNull(d.expiresAt),
+      createdAt: toDate(d.createdAt),
+    })),
+  };
 }
 
 export async function addAllowedDomain(input: { domain: string; createdById: string }) {
