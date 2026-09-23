@@ -8,7 +8,7 @@ import {
   removeAllowedDomain,
   removeAllowedEmail,
 } from "../firestore/access";
-import { db, deniedSignInAlertsCol, deniedSignInEventsCol, getDocs } from "../firestore/db";
+import { db, deniedSignInAlertsCol, deniedSignInEventsCol, getDocs, toDate, toDateOrNull } from "../firestore/db";
 import type { DeniedSignInAlertDoc, DeniedSignInEventDoc } from "../firestore/types";
 import { adminProcedure, router } from "../_core/trpc";
 
@@ -26,9 +26,11 @@ async function listDeniedEvents(options?: { limit?: number; search?: string }) {
   const fs = db();
   let q = deniedSignInEventsCol(fs).orderBy("createdAt", "desc").limit(options?.limit ?? 50);
   const docs = await getDocs<DeniedSignInEventDoc>(q);
-  if (!options?.search) return docs;
+  // Firestore returns Timestamps; convert so the client receives real Dates.
+  const events = docs.map((d) => ({ ...d, createdAt: toDate(d.createdAt) }));
+  if (!options?.search) return events;
   const s = options.search.toLowerCase();
-  return docs.filter(
+  return events.filter(
     (d) =>
       d.attemptedEmail?.toLowerCase().includes(s) ||
       d.emailDomain?.toLowerCase().includes(s) ||
@@ -38,9 +40,17 @@ async function listDeniedEvents(options?: { limit?: number; search?: string }) {
 
 async function listAlerts(limit = 20) {
   const fs = db();
-  return getDocs<DeniedSignInAlertDoc>(
+  const docs = await getDocs<DeniedSignInAlertDoc>(
     deniedSignInAlertsCol(fs).orderBy("lastDeniedAt", "desc").limit(limit),
   );
+  return docs.map((d) => ({
+    ...d,
+    windowStartedAt: toDate(d.windowStartedAt),
+    lastDeniedAt: toDate(d.lastDeniedAt),
+    lastNotifiedAt: toDateOrNull(d.lastNotifiedAt),
+    createdAt: toDate(d.createdAt),
+    updatedAt: toDate(d.updatedAt),
+  }));
 }
 
 export const accessManagementRouter = router({

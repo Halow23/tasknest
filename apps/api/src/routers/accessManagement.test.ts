@@ -23,12 +23,18 @@ const chainableQuery = () => {
   q.limit = vi.fn(() => q);
   return q;
 };
-vi.mock("../firestore/db", () => ({
-  db: vi.fn(() => ({})),
-  deniedSignInAlertsCol: vi.fn(() => chainableQuery()),
-  deniedSignInEventsCol: vi.fn(() => chainableQuery()),
-  getDocs: getDocsMock,
-}));
+vi.mock("../firestore/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../firestore/db")>();
+  return {
+    db: vi.fn(() => ({})),
+    deniedSignInAlertsCol: vi.fn(() => chainableQuery()),
+    deniedSignInEventsCol: vi.fn(() => chainableQuery()),
+    getDocs: getDocsMock,
+    // Real implementations: these are pure and need no Firebase connection.
+    toDate: actual.toDate,
+    toDateOrNull: actual.toDateOrNull,
+  };
+});
 
 const { accessManagementRouter } = await import("./accessManagement");
 
@@ -87,5 +93,42 @@ describe("access management router", () => {
     const caller = accessManagementRouter.createCaller(createContext());
 
     await expect(caller.exportDeniedSignIns({ search: "example.org" })).resolves.toHaveLength(1);
+  });
+
+  // Firestore hands back Timestamps, not Dates. The admin UI calls new Date()
+  // on these, which yields "Invalid Date" and crashes Intl.DateTimeFormat with
+  // "Invalid time value" — so the router must convert them.
+  it("returns denied sign-in timestamps as real Dates, not Firestore Timestamps", async () => {
+    const firestoreTimestamp = { _seconds: 1790114880, _nanoseconds: 185000000 };
+    getDocsMock.mockResolvedValue([
+      { id: "9", attemptedEmail: "guest@gmail.com", reason: "email_not_approved", createdAt: firestoreTimestamp },
+    ]);
+    const caller = accessManagementRouter.createCaller(createContext());
+
+    const [event] = await caller.deniedSignIns({ limit: 25 });
+    expect(event.createdAt).toBeInstanceOf(Date);
+    expect(Number.isNaN(new Date(event.createdAt as unknown as string).getTime())).toBe(false);
+    expect(() =>
+      new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+        new Date(event.createdAt as unknown as string),
+      ),
+    ).not.toThrow();
+  });
+
+  it("returns alert timestamps as real Dates", async () => {
+    const firestoreTimestamp = { _seconds: 1790114880, _nanoseconds: 0 };
+    getDocsMock.mockResolvedValue([
+      { id: "gmail.com", emailDomain: "gmail.com", count: 3, lastDeniedAt: firestoreTimestamp, windowStartedAt: firestoreTimestamp, createdAt: firestoreTimestamp, updatedAt: firestoreTimestamp, lastNotifiedAt: null },
+    ]);
+    const caller = accessManagementRouter.createCaller(createContext());
+
+    const [alert] = await caller.deniedSignInAlerts({ limit: 20 });
+    expect(alert.lastDeniedAt).toBeInstanceOf(Date);
+    expect(alert.lastNotifiedAt).toBeNull();
+    expect(() =>
+      new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+        new Date(alert.lastDeniedAt as unknown as string),
+      ),
+    ).not.toThrow();
   });
 });

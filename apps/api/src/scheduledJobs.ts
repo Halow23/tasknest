@@ -6,7 +6,7 @@ import {
   createNotification,
   getNotificationsForUser,
 } from "./firestore/workspace";
-import { db, getDocs, tasksCol, usersCol, workspacesCol } from "./firestore/db";
+import { db, getDocs, tasksCol, toPlainDoc, usersCol, workspacesCol } from "./firestore/db";
 import type { TaskDoc, UserDoc, WorkspaceDoc } from "./firestore/types";
 import { sendDailyDigestEmail } from "./digestEmail";
 import { purgeExpiredDeletedItems } from "./trash";
@@ -40,7 +40,9 @@ export async function runReminderSweep(now = new Date()) {
       .get();
 
     for (const doc of tasksSnap.docs) {
-      const task = { id: doc.id, ...doc.data() } as TaskDoc;
+      // Convert Timestamps: comparing a raw Firestore Timestamp against a Date
+      // yields NaN, which silently made every task look non-overdue.
+      const task = toPlainDoc<TaskDoc>(doc.id, doc.data());
       if (!task.dueAt) continue;
       const isOverdue = task.dueAt < startOfToday(now);
       const type = isOverdue ? "overdue" : "due_today";
@@ -86,7 +88,7 @@ export async function runDigestSweep(now = new Date()) {
       .where("completedAt", "==", null)
       .where("dueAt", "<=", endTs)
       .get();
-    const tasks = tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() } as TaskDoc));
+    const tasks = tasksSnap.docs.map((d) => toPlainDoc<TaskDoc>(d.id, d.data()));
 
     for (const member of ws.members) {
       if (!member.email) {
