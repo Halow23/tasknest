@@ -5,6 +5,7 @@
 import {
   createNotification,
   getNotificationsForUser,
+  getUserByUid,
 } from "./firestore/workspace";
 import { db, getDocs, tasksCol, toPlainDoc, usersCol, workspacesCol } from "./firestore/db";
 import type { TaskDoc, UserDoc, WorkspaceDoc } from "./firestore/types";
@@ -107,6 +108,12 @@ export async function runDigestSweep(now = new Date()) {
 
     for (const member of ws.members) {
       if (!member.email) {
+        skipped += 1;
+        continue;
+      }
+      // Members can opt out of email digests from their settings page.
+      const memberUser = await getUserByUid(member.userId);
+      if (memberUser?.preferences?.emailDigest === false) {
         skipped += 1;
         continue;
       }

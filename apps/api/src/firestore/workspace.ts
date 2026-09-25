@@ -25,6 +25,7 @@ import type {
   NotificationType,
   ProjectDoc,
   UserDoc,
+  UserPreferences,
   UserRole,
   WorkspaceDoc,
   WorkspaceMember,
@@ -36,13 +37,19 @@ import { Timestamp } from "firebase-admin/firestore";
 
 /** Convert raw Firestore data → typed UserDoc with proper Date fields. */
 function toUser(id: string, raw: Record<string, unknown>): UserDoc {
+  const rawPreferences = (raw.preferences as Partial<UserPreferences> | undefined) ?? {};
   return {
     id,
     openId: (raw.openId as string) ?? id,
     name: (raw.name as string | null) ?? null,
     email: (raw.email as string | null) ?? null,
+    photoURL: (raw.photoURL as string | null) ?? null,
     role: (raw.role as UserRole) ?? "user",
     loginMethod: (raw.loginMethod as string) ?? "google",
+    preferences: {
+      density: rawPreferences.density === "compact" ? "compact" : "comfortable",
+      emailDigest: rawPreferences.emailDigest ?? true,
+    },
     lastSignedIn: toDate(raw.lastSignedIn),
     createdAt: toDate(raw.createdAt),
     updatedAt: toDate(raw.updatedAt),
@@ -72,21 +79,55 @@ export async function upsertUser(input: {
       openId: input.openId,
       name: input.name,
       email: input.email,
+      photoURL: null,
       role: input.role ?? "user",
       loginMethod: input.loginMethod,
+      preferences: { density: "comfortable", emailDigest: true },
       lastSignedIn: now,
       createdAt: now,
       updatedAt: now,
     });
   } else {
+    // The token's display name must NOT overwrite the stored name here —
+    // users can edit their profile name, and every authenticated request
+    // runs through upsertUser. Only lastSeen bookkeeping is refreshed.
     const updates: Record<string, unknown> = {
       lastSignedIn: now,
       updatedAt: now,
-      name: input.name,
     };
     if (input.role !== undefined) updates.role = input.role;
     await ref.update(updates);
   }
+}
+
+/** Editable profile fields (name, avatar). Photo may be nulled to reset. */
+export async function updateUserProfile(
+  uid: string,
+  updates: { name?: string; photoURL?: string | null },
+): Promise<UserDoc | null> {
+  const fs = db();
+  const ref = usersCol(fs).doc(uid);
+  const payload: Record<string, unknown> = { updatedAt: Timestamp.now() };
+  if (updates.name !== undefined) payload.name = updates.name;
+  if (updates.photoURL !== undefined) payload.photoURL = updates.photoURL;
+  await ref.update(payload);
+  return getUserByUid(uid);
+}
+
+/** Merge layout/email preferences into the user's doc. */
+export async function updateUserPreferences(
+  uid: string,
+  prefs: { density?: UserPreferences["density"]; emailDigest?: boolean },
+): Promise<UserDoc | null> {
+  const fs = db();
+  const ref = usersCol(fs).doc(uid);
+  const payload: Record<string, unknown> = { updatedAt: Timestamp.now() };
+  for (const [key, value] of Object.entries(prefs)) {
+    if (value === undefined) continue;
+    payload[`preferences.${key}`] = value;
+  }
+  await ref.update(payload);
+  return getUserByUid(uid);
 }
 
 // ── Workspace helpers ────────────────────────────────────────────────────────

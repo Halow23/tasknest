@@ -24,6 +24,7 @@ export function useAuth(options?: UseAuthOptions) {
     uid: string;
     email: string | null;
     displayName: string | null;
+    photoURL: string | null;
   } | null>(null);
   const [firebaseReady, setFirebaseReady] = useState(false);
 
@@ -31,7 +32,7 @@ export function useAuth(options?: UseAuthOptions) {
     const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => {
       setFirebaseUser(
         user
-          ? { uid: user.uid, email: user.email, displayName: user.displayName }
+          ? { uid: user.uid, email: user.email, displayName: user.displayName, photoURL: user.photoURL }
           : null
       );
       setFirebaseReady(true);

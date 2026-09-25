@@ -36,4 +36,9 @@ export function TaskCard({ task, members, labels, blockedByCount = 0, focused, o
 export function ConfirmDelete({ open, title, description, value, expected, pending, onChange, onConfirm, onOpenChange }: { open: boolean; title: string; description: string; value: string; expected: string; pending: boolean; onChange: (value: string) => void; onConfirm: () => void; onOpenChange: (open: boolean) => void }) {
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="delete-confirmation">Type <strong>{expected}</strong> to confirm</Label><Input id="delete-confirmation" autoComplete="off" value={value} onChange={event => onChange(event.target.value)} placeholder={expected} /></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button variant="destructive" disabled={value !== expected || pending} onClick={onConfirm}>{pending ? "Deleting…" : "Delete permanently"}</Button></DialogFooter></DialogContent></Dialog>;
 }
+
+/** Styled archive confirmation — mirrors ConfirmDelete, but archiving is reversible so no typed confirmation. */
+export function ConfirmArchive({ open, title, description, pending, onConfirm, onOpenChange }: { open: boolean; title: string; description: string; pending: boolean; onConfirm: () => void; onOpenChange: (open: boolean) => void }) {
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={pending} onClick={onConfirm} className="bg-[#247EAF] text-white hover:bg-[#176A98]">{pending ? "Archiving…" : "Archive project"}</Button></DialogFooter></DialogContent></Dialog>;
+}
 

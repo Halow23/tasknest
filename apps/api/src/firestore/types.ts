@@ -70,13 +70,22 @@ export type ProjectField = {
 
 // ── Top-level document types ────────────────────────────────────────────────
 
+export type LayoutDensity = "comfortable" | "compact";
+
+export type UserPreferences = {
+  density: LayoutDensity;
+  emailDigest: boolean;
+};
+
 export type UserDoc = {
   id: string;             // === Firebase UID
   openId: string;         // same value, kept for compatibility
   name: string | null;
   email: string | null;
+  photoURL: string | null;
   role: UserRole;
   loginMethod: string;
+  preferences: UserPreferences;
   lastSignedIn: Date;
   createdAt: Date;
   updatedAt: Date;

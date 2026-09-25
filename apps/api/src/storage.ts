@@ -116,3 +116,31 @@ export async function storageDelete(publicId: string): Promise<void> {
   const cld = getCloudinary();
   await cld.uploader.destroy(publicId, { resource_type: "raw" });
 }
+
+/** Presigned direct-to-Cloudinary upload for profile avatars (image resource). */
+export async function storagePresignImagePutUrl(
+  relKey: string,
+): Promise<{
+  key: string;
+  uploadUrl: string;
+  uploadParams: Record<string, string | number>;
+  publicUrl: string;      // permanent CDN URL — stored on the user doc
+}> {
+  const cld = getCloudinary();
+  const publicId = buildPublicId(relKey);
+  const timestamp = Math.round(Date.now() / 1000);
+  const paramsToSign = { public_id: publicId, timestamp, resource_type: "image" };
+  const signature = cld.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!);
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
+  return {
+    key: publicId,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    uploadParams: {
+      api_key: process.env.CLOUDINARY_API_KEY!,
+      timestamp,
+      signature,
+      public_id: publicId,
+    },
+    publicUrl: `https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`,
+  };
+}

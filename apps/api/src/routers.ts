@@ -2,6 +2,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { accessManagementRouter } from "./routers/accessManagement";
 import { tasknestRouter } from "./routers/tasknest";
+import { userRouter } from "./routers/user";
 
 export const appRouter = router({
   system: systemRouter,
@@ -14,6 +15,7 @@ export const appRouter = router({
   }),
   accessManagement: accessManagementRouter,
   tasknest: tasknestRouter,
+  user: userRouter,
 });
 
 export type AppRouter = typeof appRouter;

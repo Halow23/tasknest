@@ -287,6 +287,11 @@
 
 html.dark { background: oklch(0.185 0.02 255); }
 
+/* Compact layout density (Settings): tighten cards and lane spacing. */
+[data-density="compact"] .task-card { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+[data-density="compact"] .task-card > div:first-child { margin-bottom: 0.4rem; }
+[data-density="compact"] .kanban-lane { gap: 0.4rem; }
+
 @layer base {
   * { @apply border-border outline-ring/50; }
   html { min-width: 320px; background: #f7fafb; }

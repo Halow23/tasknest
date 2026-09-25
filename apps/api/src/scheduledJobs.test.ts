@@ -3,11 +3,13 @@ import { Timestamp } from "firebase-admin/firestore";
 
 const createNotification = vi.fn().mockResolvedValue(undefined);
 const getNotificationsForUser = vi.fn().mockResolvedValue([]);
+const getUserByUid = vi.fn().mockResolvedValue({ preferences: { emailDigest: true } });
 const sendDailyDigestEmail = vi.fn().mockResolvedValue("digest-1");
 
 vi.mock("./firestore/workspace", () => ({
   createNotification,
   getNotificationsForUser,
+  getUserByUid,
   markNotificationsRead: vi.fn(),
 }));
 
@@ -120,6 +122,15 @@ describe("runDigestSweep", () => {
     expect(firstCall.overdue).toHaveLength(1);
     expect(firstCall.overdue[0].title).toBe("Overdue task");
     expect(firstCall.dueToday).toHaveLength(1);
+  });
+
+  it("skips members who opted out of email digests", async () => {
+    getUserByUid.mockResolvedValue({ preferences: { emailDigest: false } });
+
+    const result = await runDigestSweep();
+
+    expect(result.sent).toBe(0);
+    expect(sendDailyDigestEmail).not.toHaveBeenCalled();
   });
 
   it("skips members without an email address", async () => {
