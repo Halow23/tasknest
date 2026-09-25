@@ -47,19 +47,20 @@ export function Faces({ members, compact = false }: { members: Member[]; compact
   return <div className="flex -space-x-2">{members.slice(0, 4).map((member, index) => <Avatar key={member.id} className={cn("border-2 border-white", compact ? "h-5 w-5" : "h-7 w-7")}><AvatarFallback className={cn("text-[8px] font-extrabold", avatarTone(index))}>{initials(member.name || member.email)}</AvatarFallback></Avatar>)}</div>;
 }
 
-export function DueDatePicker({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+export function DueDatePicker({ id, value, onChange, min, ariaLabel = "Due date" }: { id: string; value: string; onChange: (value: string) => void; min?: string; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
   const selected = value ? new Date(`${value}T00:00:00`) : undefined;
+  const disabledDays = min ? [{ before: new Date(`${min}T00:00:00`) }] : undefined;
   return <div className="flex gap-2">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" id={id} variant="outline" className={cn("h-9 flex-1 min-w-0 justify-start px-3 text-left font-normal", !value && "text-muted-foreground")} aria-label="Due date">
+        <Button type="button" id={id} variant="outline" className={cn("h-9 flex-1 min-w-0 justify-start px-3 text-left font-normal", !value && "text-muted-foreground")} aria-label={ariaLabel}>
           <CalendarIcon className="mr-1 h-4 w-4 text-[#4B92BB]" />
           {value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(selected!) : "Pick a date"}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={selected} defaultMonth={selected ?? new Date()} onSelect={date => { onChange(date ? calendarDateKey(date) : ""); setOpen(false); }} />
+        <Calendar mode="single" selected={selected} defaultMonth={selected ?? new Date()} disabled={disabledDays} onSelect={date => { onChange(date ? calendarDateKey(date) : ""); setOpen(false); }} />
       </PopoverContent>
     </Popover>
     {value && <Button type="button" variant="outline" size="icon" aria-label="Clear due date" onClick={() => onChange("")} className="h-9 w-9 shrink-0"><X className="h-4 w-4" /></Button>}
