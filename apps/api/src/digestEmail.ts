@@ -1,5 +1,5 @@
 import { ENV } from "./_core/env";
-import nodemailer from "nodemailer";
+import { sendEmail } from "./_core/mailer";
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character] ?? character);
@@ -12,7 +12,7 @@ type DigestTask = { id: number; title: string; dueAt: Date | null; projectName: 
  * Follows the invitation email pattern (escaped HTML, idempotency key).
  */
 export async function sendDailyDigestEmail(input: { recipientEmail: string; userName: string; dueToday: DigestTask[]; overdue: DigestTask[]; appOrigin: string }) {
-  if (!ENV.smtpHost || !ENV.smtpUser || !ENV.smtpPass || !ENV.smtpFrom) {
+  if (!ENV.emailConfigured) {
     throw new Error("Digest email delivery is not configured.");
   }
   if (input.dueToday.length === 0 && input.overdue.length === 0) throw new Error("Nothing to send.");
@@ -29,29 +29,14 @@ ${input.dueToday.length ? `<h2 style="font-size:14px;color:#a36a00;margin:16px 0
 <p style="margin:20px 0 0;color:#8498a5;font-size:12px;">You receive this because you are a member of a TaskNest workspace.</p>
 </main>`;
 
-  const transporter = nodemailer.createTransport({
-    host: ENV.smtpHost,
-    port: ENV.smtpPort,
-    secure: ENV.smtpPort === 465,
-    auth: {
-      user: ENV.smtpUser,
-      pass: ENV.smtpPass,
-    },
+  const subject = `TaskNest digest — ${input.overdue.length} overdue, ${input.dueToday.length} due today`;
+  const text = `Due today: ${input.dueToday.map(task => `${task.title} (${task.projectName})`).join(", ") || "none"}. Overdue: ${input.overdue.map(task => `${task.title} (${task.projectName})`).join(", ") || "none"}.`;
+
+  const { messageId } = await sendEmail({
+    to: input.recipientEmail,
+    subject,
+    text,
+    html,
   });
-
-  const messageId = `tasknest-digest/${input.recipientEmail}/${dateKey}@tasknest`;
-
-  try {
-    const info = await transporter.sendMail({
-      from: ENV.smtpFrom,
-      to: input.recipientEmail,
-      subject: `TaskNest digest — ${input.overdue.length} overdue, ${input.dueToday.length} due today`,
-      text: `Due today: ${input.dueToday.map(task => `${task.title} (${task.projectName})`).join(", ") || "none"}. Overdue: ${input.overdue.map(task => `${task.title} (${task.projectName})`).join(", ") || "none"}.`,
-      html: html,
-      messageId: messageId,
-    });
-    return info.messageId;
-  } catch (error: any) {
-    throw new Error(error.message || "The digest email could not be delivered.");
-  }
+  return messageId;
 }

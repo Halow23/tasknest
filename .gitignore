@@ -118,3 +118,6 @@ apps/web/public/__manus__/version.json
 firebase-service-account.json
 .vercel
 .env*
+
+# Gmail OAuth one-time credentials
+.gmail-oauth.local.json

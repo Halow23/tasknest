@@ -98,7 +98,8 @@ Create a `.env` file at the **repo root** (both apps load it from there). Variab
 | `PORT` | api | API port (default `3001`) |
 | `ADMIN_EMAILS` | api | Emails granted admin role |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | api | File uploads |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | api | Email digests |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | api | Email digests (SMTP fallback, local dev) |
+| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` / `GMAIL_USER` | api | Email via Gmail API over HTTPS (primary; SMTP ports are blocked on Railway) |
 | `CRON_SECRET` | api | Auth for scheduled job endpoints |
 | `DIGEST_APP_ORIGIN` | api | Links included in digest emails |
 
