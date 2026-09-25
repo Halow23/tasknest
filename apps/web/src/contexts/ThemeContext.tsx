@@ -1,14 +1,45 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "system";
+type ResolvedTheme = "light" | "dark";
 
 interface ThemeContextType {
   theme: Theme;
-  toggleTheme?: () => void;
+  resolvedTheme: ResolvedTheme;
+  setTheme: (theme: Theme) => void;
   switchable: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+const STORAGE_KEY = "theme";
+
+function systemPrefersDark(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  if (theme === "system") return systemPrefersDark() ? "dark" : "light";
+  return theme;
+}
+
+function applyTheme(resolved: ResolvedTheme) {
+  const root = document.documentElement;
+  root.classList.toggle("dark", resolved === "dark");
+  root.style.colorScheme = resolved;
+}
+
+/** Runs before React mounts so the stored theme paints without a flash. */
+export function applyStoredThemeBeforePaint() {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return;
+  }
+  const theme: Theme = stored === "dark" || stored === "light" || stored === "system" ? stored : "system";
+  applyTheme(resolveTheme(theme));
+}
 
 interface ThemeProviderProps {
   children: React.ReactNode;
@@ -23,33 +54,40 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === "dark" || stored === "light" || stored === "system") return stored;
+      } catch {
+        // localStorage unavailable — fall through to the default.
+      }
     }
     return defaultTheme;
   });
 
+  const [systemDark, setSystemDark] = useState(systemPrefersDark);
+
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    if (theme !== "system" || typeof window === "undefined") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [theme]);
 
-    if (switchable) {
-      localStorage.setItem("theme", theme);
-    }
-  }, [theme, switchable]);
+  const resolvedTheme: ResolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
-  const toggleTheme = switchable
-    ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
-      }
-    : undefined;
+  useEffect(() => {
+    if (!switchable) return;
+    applyTheme(resolveTheme(theme));
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Storage unavailable — the theme applies for this session only.
+    }
+  }, [theme, resolvedTheme, switchable]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, switchable }}>
       {children}
     </ThemeContext.Provider>
   );

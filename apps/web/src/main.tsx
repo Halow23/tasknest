@@ -6,8 +6,12 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
+import { applyStoredThemeBeforePaint } from "./contexts/ThemeContext";
 import { WorkspaceInviteControl } from "./components/WorkspaceInviteControl";
 import "./index.css";
+
+// Apply the stored theme before React mounts so dark mode paints without a flash.
+applyStoredThemeBeforePaint();
 
 const queryClient = new QueryClient();
 

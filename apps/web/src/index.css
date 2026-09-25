@@ -55,6 +55,238 @@
   --ring: oklch(0.67 0.13 230);
 }
 
+/* Signal Desk dark: same structure, soft navy surfaces, brand accents preserved. */
+.dark {
+  --radius: 0.75rem;
+  --background: oklch(0.185 0.02 255);
+  --foreground: oklch(0.92 0.012 230);
+  --card: oklch(0.225 0.024 255);
+  --card-foreground: oklch(0.92 0.012 230);
+  --popover: oklch(0.225 0.024 255);
+  --popover-foreground: oklch(0.92 0.012 230);
+  --primary: oklch(0.72 0.12 230);
+  --primary-foreground: oklch(0.17 0.02 255);
+  --secondary: oklch(0.26 0.03 254);
+  --secondary-foreground: oklch(0.88 0.015 230);
+  --muted: oklch(0.26 0.022 252);
+  --muted-foreground: oklch(0.68 0.02 235);
+  --accent: oklch(0.29 0.035 250);
+  --accent-foreground: oklch(0.9 0.015 230);
+  --destructive: oklch(0.63 0.19 28);
+  --destructive-foreground: oklch(0.98 0.005 28);
+  --border: oklch(0.31 0.025 252);
+  --input: oklch(0.31 0.025 252);
+  --ring: oklch(0.72 0.12 230);
+}
+
+/*
+ * Dark remap layer: the pages predate the token system and use hard-coded hex
+ * utilities. Each signature light color is remapped once, keyed by its compiled
+ * utility class. Brand accents (coral CTAs, status colors) stay untouched.
+ */
+.dark [class*="bg-[#BDE6FF]"],
+.dark [class*="bg-[#D8EEFC]"],
+.dark [class*="bg-[#E5F4FC]"],
+.dark [class*="bg-[#EAF6FF]"],
+.dark [class*="bg-[#EAF7FE]"],
+.dark [class*="bg-[#EEF6FB]"],
+.dark [class*="bg-[#F0F9FD]"],
+.dark [class*="bg-[#F1F8FC]"],
+.dark [class*="bg-[#F3FAFF]"],
+.dark [class*="bg-[#FFF8E6]"],
+.dark [class*="bg-[#FFF7F4]"],
+.dark [class*="bg-[#FFF8F5]"],
+.dark [class*="bg-[#FFF3F1]"],
+.dark [class*="bg-[#FFF0EE]"],
+.dark [class*="bg-[#FFF6F4]"],
+.dark [class*="bg-[#D9EAD8]"],
+.dark [class*="bg-[#E5F5EA]"],
+.dark .bg-white { background-color: oklch(0.28 0.04 250); }
+
+.dark [class*="bg-[#DDE8EE]"],
+.dark [class*="bg-[#E1EAF0]"],
+.dark [class*="bg-[#E8F0F4]"],
+.dark [class*="bg-[#F0F5F7]"],
+.dark [class*="bg-[#F1F5F7]"],
+.dark [class*="bg-[#F1F7FA]"],
+.dark [class*="bg-[#F2F7FA]"],
+.dark [class*="bg-[#F4F8FA]"],
+.dark [class*="bg-[#F5F9FB]"],
+.dark [class*="bg-[#F6F9FA]"],
+.dark [class*="bg-[#FBFCFD]"],
+.dark [class*="bg-[#FBFDFE]"],
+.dark [class*="bg-[#F8FBFC]"],
+.dark [class*="bg-[#F9FBFC]"],
+.dark [class*="bg-[#FAFCFD]"],
+.dark [class*="bg-[#f8f8f7]"] { background-color: oklch(0.225 0.024 255); }
+
+.dark [class*="bg-[#F7FAFB]"] { background-color: oklch(0.185 0.02 255); }
+
+.dark [class*="border-[#38A9F2]"] { border-color: oklch(0.45 0.1 232); }
+
+.dark [class*="border-[#F0D9D5]"],
+.dark [class*="border-[#F1D6D2]"],
+.dark [class*="border-[#F2D7D3]"],
+.dark [class*="border-[#F3DDD4]"],
+.dark [class*="border-[#F4D8CE]"] { border-color: oklch(0.35 0.05 30); }
+
+.dark [class*="border-[#BDE6FF]"],
+.dark [class*="border-[#D5E7F0]"],
+.dark [class*="border-[#D7E5EB]"],
+.dark [class*="border-[#D8EAF3]"],
+.dark [class*="border-[#DCE8EE]"],
+.dark [class*="border-[#DCEAF0]"],
+.dark [class*="border-[#DCEBF2]"],
+.dark [class*="border-[#DDE8EE]"],
+.dark [class*="border-[#DDE9EF]"],
+.dark [class*="border-[#DDEAF0]"],
+.dark [class*="border-[#DFE9EE]"],
+.dark [class*="border-[#E0E9EE]"],
+.dark [class*="border-[#E0EAF0]"],
+.dark [class*="border-[#E1EAF0]"],
+.dark [class*="border-[#E2EBF0]"],
+.dark [class*="border-[#E4ECF1]"],
+.dark [class*="border-[#E5EDF1]"],
+.dark [class*="border-[#E5EDF2]"],
+.dark [class*="border-[#E7EEF2]"],
+.dark [class*="border-[#E8EFF3]"],
+.dark [class*="border-[#EDF2F5]"],
+.dark [class*="border-[#EEF3F5]"] { border-color: oklch(0.31 0.025 252); }
+
+.dark [class*="text-[#172B4D]"],
+.dark [class*="text-[#1E4563]"],
+.dark [class*="text-[#1F4260]"],
+.dark [class*="text-[#233F59]"],
+.dark [class*="text-[#245779]"],
+.dark [class*="text-[#253B56]"],
+.dark [class*="text-[#253F5C]"],
+.dark [class*="text-[#27445D]"],
+.dark [class*="text-[#294A62]"],
+.dark [class*="text-[#2B526B]"],
+.dark [class*="text-[#2D4D65]"],
+.dark [class*="text-[#2E526B]"],
+.dark [class*="text-[#31546B]"],
+.dark [class*="text-[#34322d]"],
+.dark [class*="text-[#395269]"],
+.dark [class*="text-[#3A5269]"],
+.dark [class*="text-[#3A5970]"],
+.dark [class*="text-[#385870]"],
+.dark [class*="text-[#2E617F]"],
+.dark [class*="text-[#456176]"],
+.dark [class*="text-[#477084]"],
+.dark [class*="text-[#4A7189]"],
+.dark [class*="text-[#4B697C]"],
+.dark [class*="text-[#4E758D]"],
+.dark [class*="text-[#526B7B]"],
+.dark [class*="text-[#597080]"],
+.dark [class*="text-[#607987]"],
+.dark [class*="text-[#69818F]"],
+.dark [class*="text-[#6C8797]"],
+.dark [class*="text-[#6D8796]"],
+.dark [class*="text-[#6E8796]"],
+.dark [class*="text-[#6F8A9A]"],
+.dark [class*="text-[#708490]"],
+.dark [class*="text-[#718491]"],
+.dark [class*="text-[#718996]"],
+.dark [class*="text-[#718A9A]"],
+.dark [class*="text-[#73907F]"],
+.dark [class*="text-[#78909F]"],
+.dark [class*="text-[#79909E]"],
+.dark [class*="text-[#7B8F9C]"],
+.dark [class*="text-[#7C8E9B]"],
+.dark [class*="text-[#7C929F]"],
+.dark [class*="text-[#7C94A2]"],
+.dark [class*="text-[#7F94A1]"],
+.dark [class*="text-[#8093A0]"],
+.dark [class*="text-[#8197A5]"],
+.dark [class*="text-[#8296A4]"],
+.dark [class*="text-[#8297A5]"],
+.dark [class*="text-[#8498A5]"],
+.dark [class*="text-[#8499A6]"],
+.dark [class*="text-[#8A9BA6]"],
+.dark [class*="text-[#8B9EAA]"],
+.dark [class*="text-[#8BA0AD]"],
+.dark [class*="text-[#8BA1AE]"],
+.dark [class*="text-[#8C9EA9]"],
+.dark [class*="text-[#90A1AB]"],
+.dark [class*="text-[#90A2AD]"],
+.dark [class*="text-[#91A3AE]"],
+.dark [class*="text-[#9BAAB3]"],
+.dark [class*="text-[#B7C5CE]"],
+.dark [class*="text-[#858481]"],
+.dark [class*="text-[#5B8DAA]"],
+.dark [class*="text-[#5C7F93]"],
+.dark [class*="text-[#5F7E91]"],
+.dark [class*="text-[#A36A00]"],
+.dark [class*="text-[#7D5214]"],
+.dark [class*="text-[#D44A3F]"],
+.dark [class*="text-[#C9554B]"],
+.dark [class*="text-[#BE5A4F]"],
+.dark [class*="text-[#BF5A50]"],
+.dark [class*="text-[#C2574E]"],
+.dark [class*="text-[#D65D53]"],
+.dark [class*="text-[#D76354]"],
+.dark [class*="text-[#A14B42]"],
+.dark [class*="text-[#A0564E]"],
+.dark [class*="text-[#8D413A]"],
+.dark [class*="text-[#3E7A52]"],
+.dark [class*="text-[#54A677]"],
+.dark [class*="text-[#426046]"],
+.dark [class*="text-[#6EBB92]"],
+.dark [class*="text-[#69AFD1]"],
+.dark [class*="text-[#72A2BC]"],
+.dark [class*="text-[#4B92BB]"],
+.dark [class*="text-[#4D94BB]"],
+.dark [class*="text-[#4D9EC8]"],
+.dark [class*="text-[#38A9F2]"],
+.dark [class*="text-[#2E85B5]"],
+.dark [class*="text-[#2A7BA9]"],
+.dark [class*="text-[#2B789F]"],
+.dark [class*="text-[#2E789F]"],
+.dark [class*="text-[#247EAF]"],
+.dark [class*="text-[#31779F]"],
+.dark [class*="text-[#347EA7]"],
+.dark [class*="text-[#3B86B0]"],
+.dark [class*="text-[#1A5C82]"] { color: oklch(0.87 0.014 232); }
+
+/* Accent text gets a brightened identity instead of plain light gray. */
+.dark [class*="text-[#2E85B5]"],
+.dark [class*="text-[#2A7BA9]"],
+.dark [class*="text-[#2B789F]"],
+.dark [class*="text-[#2E789F]"],
+.dark [class*="text-[#247EAF]"],
+.dark [class*="text-[#31779F]"],
+.dark [class*="text-[#347EA7]"],
+.dark [class*="text-[#3B86B0]"],
+.dark [class*="text-[#4B92BB]"],
+.dark [class*="text-[#4D94BB]"],
+.dark [class*="text-[#4D9EC8]"],
+.dark [class*="text-[#69AFD1]"],
+.dark [class*="text-[#6EBB92]"],
+.dark [class*="text-[#72A2BC]"],
+.dark [class*="text-[#38A9F2]"],
+.dark [class*="text-[#1A5C82]"] { color: oklch(0.80 0.1 232); }
+
+.dark [class*="text-[#D44A3F]"],
+.dark [class*="text-[#C9554B]"],
+.dark [class*="text-[#BE5A4F]"],
+.dark [class*="text-[#BF5A50]"],
+.dark [class*="text-[#C2574E]"],
+.dark [class*="text-[#D65D53]"],
+.dark [class*="text-[#D76354]"],
+.dark [class*="text-[#A14B42]"],
+.dark [class*="text-[#A0564E]"],
+.dark [class*="text-[#8D413A]"] { color: oklch(0.76 0.13 30); }
+
+.dark [class*="text-[#A36A00]"],
+.dark [class*="text-[#7D5214]"] { color: oklch(0.80 0.1 85); }
+
+.dark [class*="text-[#54A677]"],
+.dark [class*="text-[#3E7A52]"],
+.dark [class*="text-[#6EBB92]"] { color: oklch(0.78 0.1 155); }
+
+html.dark { background: oklch(0.185 0.02 255); }
+
 @layer base {
   * { @apply border-border outline-ring/50; }
   html { min-width: 320px; background: #f7fafb; }
