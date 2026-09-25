@@ -33,7 +33,8 @@ function messageFor(row: NotificationRow) {
 export function NotificationBell({ onSelectTask }: { onSelectTask: (taskId: string) => void }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
-  const list = trpc.tasknest.notification.list.useQuery(undefined, { enabled: open || true, refetchInterval: 30_000 });
+  // The badge stays live via SSE cache invalidation; interval polling only while open.
+  const list = trpc.tasknest.notification.list.useQuery(undefined, { refetchInterval: open ? 30_000 : false });
   const markRead = trpc.tasknest.notification.markRead.useMutation({
     onSuccess: () => utils.tasknest.notification.list.invalidate(),
     onError: error => toast.error(error.message),

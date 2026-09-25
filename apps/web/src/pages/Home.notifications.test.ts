@@ -28,7 +28,7 @@ describe("notifications", () => {
     const bell = await readFile(new URL("../components/NotificationBell.tsx", import.meta.url), "utf8");
 
     expect(home).toContain("<NotificationBell onSelectTask={taskId => setSelectedTaskId(taskId)} />");
-    expect(bell).toContain("refetchInterval: 30_000");
+    expect(bell).toContain("refetchInterval: open ? 30_000 : false");
     expect(bell).toContain("Mark all read");
     expect(bell).toContain("if (row.taskId) onSelectTask(row.taskId)");
   });

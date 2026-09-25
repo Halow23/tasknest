@@ -39,36 +39,51 @@ export async function runReminderSweep(now = new Date()) {
       .where("dueAt", "<=", endTs)
       .get();
 
-    for (const doc of tasksSnap.docs) {
+    const tasks = tasksSnap.docs
+      .map((doc) => toPlainDoc<TaskDoc>(doc.id, doc.data()))
       // Convert Timestamps: comparing a raw Firestore Timestamp against a Date
       // yields NaN, which silently made every task look non-overdue.
-      const task = toPlainDoc<TaskDoc>(doc.id, doc.data());
-      if (!task.dueAt) continue;
-      const isOverdue = task.dueAt < startOfToday(now);
-      const type = isOverdue ? "overdue" : "due_today";
+      .filter((task) => task.dueAt);
 
-      for (const userId of task.assigneeIds) {
-        // Dedup against unread notifications for this task+type
+    // One read per distinct assignee per workspace (not per task×assignee):
+    // snapshot each assignee's recent unread reminders once, dedupe in memory.
+    const assigneeIds = Array.from(new Set(tasks.flatMap((task) => task.assigneeIds)));
+    const unreadKeys = new Map<string, Set<string>>();
+    await Promise.all(
+      assigneeIds.map(async (userId) => {
         const existing = await getNotificationsForUser(userId);
-        const hasUnread = existing.some(
-          (n) => n.taskId === task.id && n.type === type && !n.readAt,
-        );
-        if (hasUnread) {
-          skipped += 1;
-          continue;
-        }
-        await createNotification({
+        unreadKeys.set(
           userId,
-          type,
-          actorId: ws.ownerId,
-          actorName: "TaskNest",
-          taskId: task.id,
-          taskTitle: task.title,
-          workspaceId: ws.id,
+          new Set(existing.filter((n) => !n.readAt).map((n) => `${n.taskId}|${n.type}`)),
+        );
+      }),
+    );
+
+    await Promise.all(
+      tasks.flatMap((task) => {
+        const isOverdue = !!task.dueAt && task.dueAt < startOfToday(now);
+        const type = isOverdue ? "overdue" : "due_today";
+        return task.assigneeIds.map(async (userId) => {
+          const key = `${task.id}|${type}`;
+          const seen = unreadKeys.get(userId);
+          if (seen?.has(key)) {
+            skipped += 1;
+            return;
+          }
+          seen?.add(key); // also dedupes repeats within this same sweep
+          await createNotification({
+            userId,
+            type,
+            actorId: ws.ownerId,
+            actorName: "TaskNest",
+            taskId: task.id,
+            taskTitle: task.title,
+            workspaceId: ws.id,
+          });
+          created += 1;
         });
-        created += 1;
-      }
-    }
+      }),
+    );
   }
 
   return { created, skipped, note: BELL_ACTOR_PLACEHOLDER_NOTE };

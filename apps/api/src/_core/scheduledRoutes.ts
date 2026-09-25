@@ -1,16 +1,25 @@
 import type { Express, Request, Response } from "express";
+import { timingSafeEqual } from "node:crypto";
 import { ENV } from "./env";
 import { authenticateRequest } from "./firebaseAuth";
 import { runDigestSweep, runPurgeSweep, runReminderSweep } from "../scheduledJobs";
 
 /**
  * Cron entry points. Cloud Scheduler (or any scheduler) POSTs to these routes
- * with the shared CRON_SECRET (header `x-cron-secret` or body `cronSecret`);
- * authenticated users may also trigger them manually.
+ * with the shared CRON_SECRET (header `x-cron-secret` or body `cronSecret`).
+ * In non-production, signed-in users may also trigger them manually.
  */
+function secretsMatch(provided: string): boolean {
+  if (!ENV.cronSecret) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(ENV.cronSecret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 async function authorize(req: Request): Promise<boolean> {
   const bodySecret = (req.body ?? {})["cronSecret"] ?? req.header("x-cron-secret");
-  if (bodySecret && ENV.cronSecret && bodySecret === ENV.cronSecret) return true;
+  if (bodySecret && secretsMatch(bodySecret)) return true;
+  if (ENV.isProduction) return false;
   try {
     const user = await authenticateRequest(req);
     return Boolean(user);

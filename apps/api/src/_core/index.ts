@@ -1,5 +1,7 @@
 import "./loadEnv";
+import compression from "compression";
 import express from "express";
+import helmet from "helmet";
 import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
@@ -15,6 +17,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5171")
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // Baseline hardening + response compression for JSON payloads
+  app.use(helmet());
+  app.use(compression());
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

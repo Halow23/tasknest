@@ -7,7 +7,7 @@ describe("reminders, digest, and purge cron", () => {
 
     expect(jobs).toContain("export async function runReminderSweep(");
     expect(jobs).toContain('const type = isOverdue ? "overdue" : "due_today";');
-    expect(jobs).toContain("if (hasUnread) {");
+    expect(jobs).toContain("const seen = unreadKeys.get(userId);");
     expect(jobs).toContain("export async function runDigestSweep(");
     expect(jobs).toContain("if (overdue.length === 0 && dueToday.length === 0) {");
     expect(jobs).toContain("export async function runPurgeSweep(");
@@ -31,7 +31,7 @@ describe("reminders, digest, and purge cron", () => {
     expect(routes).toContain('app.post("/api/scheduled/reminders"');
     expect(routes).toContain('app.post("/api/scheduled/digest"');
     expect(routes).toContain('app.post("/api/scheduled/purge"');
-    expect(routes).toContain('bodySecret === ENV.cronSecret');
+    expect(routes).toContain("timingSafeEqual(a, b)");
     expect(index).toContain("registerScheduledJobs(app);");
   });
 });

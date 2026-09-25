@@ -54,6 +54,7 @@ import {
   deleteTimeEntry,
   getLabels,
   getOpenDependencies,
+  getOpenDependencyIds,
   getTaskById,
   getTaskDetail,
   listDeletedTasks,
@@ -523,14 +524,16 @@ export const tasknestRouter = router({
           labelId: input.labelId ?? undefined,
           dueBucket: input.dueBucket,
         });
-        // Open-dependency counts per task, joined into the list rows.
+        // Open-dependency counts per task, resolved with chunked batched reads
+        // (one `in` query per 30 unique dependency ids instead of 2 reads per task).
         const blockedByCount = new Map<string, number>();
-        const withDeps = tasks.filter((t) => t.dependencies.length > 0);
-        if (withDeps.length) {
-          const openDeps = await Promise.all(
-            withDeps.map(async (t) => [t.id, await getOpenDependencies(input.workspaceId, t.id)] as const),
-          );
-          for (const [id, deps] of openDeps) blockedByCount.set(id, deps.length);
+        const depIds = Array.from(new Set(tasks.flatMap((t) => t.dependencies)));
+        if (depIds.length) {
+          const openIds = await getOpenDependencyIds(input.workspaceId, depIds);
+          for (const t of tasks) {
+            const count = t.dependencies.filter((id) => openIds.has(id)).length;
+            if (count) blockedByCount.set(t.id, count);
+          }
         }
         const tasksWithCounts = tasks.map((t) => ({ ...t, blockedByCount: blockedByCount.get(t.id) ?? 0 }));
         const memberRows = ws.members.map((m) => ({ id: m.userId, name: m.name, email: m.email }));

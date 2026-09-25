@@ -166,6 +166,8 @@ export async function listTasks(input: {
   if (input.labelId) query = query.where("labelIds", "array-contains", input.labelId) as typeof query;
 
   query = query.orderBy("sortOrder", "asc").orderBy("updatedAt", "desc") as typeof query;
+  // Hard ceiling: lanes are board-sized; without it a runaway project reads unboundedly.
+  query = query.limit(500) as typeof query;
 
   const snap = await query.get();
   let tasks = snap.docs.map((d) => toTask(d.id, d.data() as Record<string, unknown>));
@@ -193,15 +195,15 @@ export async function getTaskDetail(wsId: string, taskId: string) {
   if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
 
   const [comments, attachments, activity, timeEntries] = await Promise.all([
-    getDocs<CommentDoc>(commentsCol(fs, wsId, taskId).orderBy("createdAt", "asc")),
-    getDocs<AttachmentDoc>(attachmentsCol(fs, wsId, taskId).orderBy("createdAt", "desc")),
+    getDocs<CommentDoc>(commentsCol(fs, wsId, taskId).orderBy("createdAt", "desc").limit(100)),
+    getDocs<AttachmentDoc>(attachmentsCol(fs, wsId, taskId).orderBy("createdAt", "desc").limit(100)),
     getDocs<ActivityDoc>(activityCol(fs, wsId, taskId).orderBy("createdAt", "desc").limit(50)),
-    getDocs<TimeEntryDoc>(timeEntriesCol(fs, wsId, taskId).orderBy("loggedAt", "desc")),
+    getDocs<TimeEntryDoc>(timeEntriesCol(fs, wsId, taskId).orderBy("loggedAt", "desc").limit(100)),
   ]);
 
   return {
     task,
-    comments: comments.map((c) => toComment(c.id, c as unknown as Record<string, unknown>)),
+    comments: comments.map((c) => toComment(c.id, c as unknown as Record<string, unknown>)).reverse(),
     attachments: attachments.map((a) => toAttachment(a.id, a as unknown as Record<string, unknown>)),
     activity: activity.map((a) => toActivity(a.id, a as unknown as Record<string, unknown>)),
     timeEntries: timeEntries.map((e) => toTimeEntry(e.id, e as unknown as Record<string, unknown>)),
@@ -523,6 +525,28 @@ export async function getOpenDependencies(wsId: string, taskId: string): Promise
     .where("deletedAt", "==", null)
     .get();
   return snap.docs.map((d) => ({ id: d.id, title: (d.data() as Record<string, unknown>).title as string }));
+}
+
+/** Resolve which of the given dependency ids are open (not completed, not deleted). */
+export async function getOpenDependencyIds(wsId: string, depIds: string[]): Promise<Set<string>> {
+  const unique = Array.from(new Set(depIds));
+  const open = new Set<string>();
+  if (!unique.length) return open;
+  const fs = db();
+  // `in` filters accept at most 30 values per query.
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += 30) chunks.push(unique.slice(i, i + 30));
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const snap = await tasksCol(fs, wsId)
+        .where("__name__", "in", chunk)
+        .where("completedAt", "==", null)
+        .where("deletedAt", "==", null)
+        .get();
+      for (const d of snap.docs) open.add(d.id);
+    }),
+  );
+  return open;
 }
 
 // ── Soft delete / trash ───────────────────────────────────────────────────────
