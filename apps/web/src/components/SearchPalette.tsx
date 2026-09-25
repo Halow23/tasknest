@@ -6,7 +6,7 @@ import { formatDate } from "@/pages/home/helpers";
 
 type SearchResult = { id: string; title: string; status: string; priority: string; dueAt: Date | null; projectId: string; projectName?: string; projectColor?: string };
 
-/** ⌘K workspace-wide task search palette. Searches titles, descriptions, and comment bodies. */
+/** ⌘K workspace-wide task search palette. Searches task titles (prefix match). */
 export function SearchPalette({ open, onOpenChange, workspaceId, onSelectTask }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;

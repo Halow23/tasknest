@@ -21,7 +21,7 @@ function endOfToday(now: Date) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 }
 function digestAppOrigin() {
-  return process.env.DIGEST_APP_ORIGIN || "https://tasknest-mrafqspx.manus.space";
+  return process.env.DIGEST_APP_ORIGIN || "https://tasknest-api.vercel.app";
 }
 
 /** Due-today/overdue notifications per assignee, deduped against unread duplicates. */

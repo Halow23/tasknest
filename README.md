@@ -155,6 +155,22 @@ Run from the repo root (all scripts fan out across the workspace):
 | `pnpm test` | Run all Vitest suites |
 | `pnpm format` | Format with Prettier |
 
+## Scheduled jobs (cron)
+
+Three endpoints drive background sweeps. In production they require the shared
+secret via the `x-cron-secret` header (value of `CRON_SECRET`); any scheduler
+that can POST works — e.g. Cloud Scheduler or cron-job.org:
+
+| Endpoint | Effect |
+|---|---|
+| `POST /api/scheduled/reminders` | Creates due-today / overdue bell notifications (deduped per assignee) |
+| `POST /api/scheduled/digest` | Sends one "your day" email per member with due/overdue work |
+| `POST /api/scheduled/purge` | Permanently deletes trash items past their retention window |
+
+```bash
+curl -X POST https://<api-host>/api/scheduled/reminders -H "x-cron-secret: $CRON_SECRET"
+```
+
 ## Deployment
 
 - **Web** — Vercel (`vercel.json` builds `@tasknest/web` and serves `apps/web/dist`), or Firebase Hosting (`firebase.json` rewrites all routes to `index.html`).
