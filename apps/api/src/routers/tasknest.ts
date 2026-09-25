@@ -42,6 +42,14 @@ import {
   markNotificationsRead,
 } from "../firestore/workspace";
 import {
+  addChatGroupMember,
+  createChatGroup,
+  listChatGroups,
+  markChatGroupRead,
+  removeChatGroupMember,
+  sendChatMessage,
+} from "../firestore/chat";
+import {
   addSubtask,
   assertTaskMember,
   createAttachment,
@@ -1339,6 +1347,68 @@ export const tasknestRouter = router({
         const dueThisWeek = tasks.filter((t) => t.dueAt && t.dueAt >= today && t.dueAt <= upcoming && t.status !== "done").length;
         const overdue = tasks.filter((t) => t.dueAt && t.dueAt < today && t.status !== "done").length;
         return { total, dueThisWeek, overdue, completionRate: total ? Math.round((byStatus.done / total) * 100) : 0, byStatus };
+      }),
+  }),
+
+  // ── Group messaging ────────────────────────────────────────────────────────
+  chat: router({
+    groupsList: protectedProcedure.query(async ({ ctx }) => {
+      const ws = await getWorkspaceForUser(ctx.user.id);
+      if (!ws) return [];
+      return listChatGroups(ws.id, ctx.user.id);
+    }),
+
+    groupsCreate: protectedProcedure
+      .input(z.object({ name: z.string().trim().min(1).max(60) }))
+      .mutation(async ({ ctx, input: params }) => {
+        const ws = await getWorkspaceForUser(ctx.user.id);
+        if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+        const group = await createChatGroup(ws.id, { name: params.name, createdBy: ctx.user.id });
+        publishWorkspaceEvent({ workspaceId: ws.id, type: "group_created", actorId: ctx.user.id, at: new Date().toISOString() });
+        return group;
+      }),
+
+    groupsAddMember: protectedProcedure
+      .input(z.object({ groupId: z.string().min(1), userId: z.string().min(1) }))
+      .mutation(async ({ ctx, input: params }) => {
+        const ws = await getWorkspaceForUser(ctx.user.id);
+        if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+        await addChatGroupMember(ws.id, params.groupId, ctx.user.id, params.userId);
+        publishWorkspaceEvent({ workspaceId: ws.id, type: "group_member_changed", actorId: ctx.user.id, metadata: { groupId: params.groupId }, at: new Date().toISOString() });
+        return { ok: true as const };
+      }),
+
+    groupsRemoveMember: protectedProcedure
+      .input(z.object({ groupId: z.string().min(1), userId: z.string().min(1) }))
+      .mutation(async ({ ctx, input: params }) => {
+        const ws = await getWorkspaceForUser(ctx.user.id);
+        if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+        await removeChatGroupMember(ws.id, params.groupId, ctx.user.id, params.userId);
+        publishWorkspaceEvent({ workspaceId: ws.id, type: "group_member_changed", actorId: ctx.user.id, metadata: { groupId: params.groupId }, at: new Date().toISOString() });
+        return { ok: true as const };
+      }),
+
+    groupsMarkRead: protectedProcedure
+      .input(z.object({ groupId: z.string().min(1) }))
+      .mutation(async ({ ctx, input: params }) => {
+        const ws = await getWorkspaceForUser(ctx.user.id);
+        if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+        await markChatGroupRead(ws.id, params.groupId, ctx.user.id);
+        return { ok: true as const };
+      }),
+
+    messagesSend: protectedProcedure
+      .input(z.object({ groupId: z.string().min(1), body: z.string().trim().min(1).max(2000) }))
+      .mutation(async ({ ctx, input: params }) => {
+        const ws = await getWorkspaceForUser(ctx.user.id);
+        if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found." });
+        const message = await sendChatMessage(ws.id, params.groupId, {
+          authorId: ctx.user.id,
+          authorName: ctx.user.name ?? ctx.user.email ?? "Teammate",
+          body: params.body,
+        });
+        publishWorkspaceEvent({ workspaceId: ws.id, type: "message_added", actorId: ctx.user.id, metadata: { groupId: params.groupId }, at: new Date().toISOString() });
+        return message;
       }),
   }),
 });

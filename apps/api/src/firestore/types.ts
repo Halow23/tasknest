@@ -100,6 +100,30 @@ export type WorkspaceDoc = {
   updatedAt: Date;
 };
 
+// ── Group messaging ─────────────────────────────────────────────────────────
+
+export type ChatGroupDoc = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  memberIds: string[];
+  createdBy: string;
+  // Per-member read cursor: unread = messages newer than this timestamp.
+  readStates: Record<string, Date>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type ChatMessageDoc = {
+  id: string;
+  groupId: string;
+  workspaceId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: Date;
+};
+
 export type ProjectDoc = {
   id: string;
   workspaceId: string;

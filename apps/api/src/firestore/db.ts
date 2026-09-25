@@ -93,6 +93,14 @@ export function automationRulesCol(fs: FS, wsId: string): CollectionReference {
   return fs.collection("workspaces").doc(wsId).collection("automationRules");
 }
 
+export function chatGroupsCol(fs: FS, wsId: string): CollectionReference {
+  return fs.collection("workspaces").doc(wsId).collection("chatGroups");
+}
+
+export function chatMessagesCol(fs: FS, wsId: string, groupId: string): CollectionReference {
+  return fs.collection("workspaces").doc(wsId).collection("chatGroups").doc(groupId).collection("messages");
+}
+
 export function allowedDomainsCol(fs: FS): CollectionReference {
   return fs.collection("allowedDomains");
 }

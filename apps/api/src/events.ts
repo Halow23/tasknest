@@ -14,6 +14,7 @@ export type WorkspaceEvent = {
   projectId?: string | null;
   taskId?: string | null;
   actorId: string;
+  metadata?: Record<string, unknown>;
   at: string;
 };
 

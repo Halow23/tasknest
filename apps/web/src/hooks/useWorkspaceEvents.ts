@@ -64,6 +64,9 @@ export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: 
           if (payload.type === "member_removed" || payload.type === "member_role_changed") {
             queryClient.invalidateQueries({ queryKey: [["tasknest", "workspace", "current"]] });
           }
+          if (payload.type === "message_added" || payload.type === "group_created" || payload.type === "group_member_changed") {
+            queryClient.invalidateQueries({ queryKey: [["tasknest", "chat", "groupsList"]] });
+          }
         } catch {
           // Ignore malformed frames; the stream reconnects on its own.
         }
