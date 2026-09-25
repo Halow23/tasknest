@@ -2,6 +2,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { accessManagementRouter } from "./routers/accessManagement";
 import { tasknestRouter } from "./routers/tasknest";
+import { membersRouter } from "./routers/members";
 import { userRouter } from "./routers/user";
 
 export const appRouter = router({
@@ -14,6 +15,7 @@ export const appRouter = router({
     logout: publicProcedure.mutation(() => ({ success: true } as const)),
   }),
   accessManagement: accessManagementRouter,
+  members: membersRouter,
   tasknest: tasknestRouter,
   user: userRouter,
 });

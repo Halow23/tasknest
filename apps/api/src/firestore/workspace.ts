@@ -413,3 +413,30 @@ export async function markNotificationsRead(uid: string, ids: string[]): Promise
   }
   await batch.commit();
 }
+
+// ── Member management (admin panel) ─────────────────────────────────────────
+
+/** Change a member's workspace-level role. The owner's role is immutable. */
+export async function setWorkspaceMemberRole(wsId: string, userId: string, role: UserRole): Promise<void> {
+  const ws = await getWorkspaceById(wsId);
+  if (!ws) throw new Error("Workspace not found.");
+  if (ws.ownerId === userId) throw new Error("The workspace owner's role cannot change.");
+  if (!ws.members.some(member => member.userId === userId)) throw new Error("That person is not a member of this workspace.");
+  const updatedMembers = ws.members.map(member => (member.userId === userId ? { ...member, role } : member));
+  await workspacesCol(db()).doc(wsId).update({ members: updatedMembers, updatedAt: Timestamp.now() });
+}
+
+/** Remove a member from the workspace entirely. The owner cannot be removed. */
+export async function removeWorkspaceMember(wsId: string, userId: string): Promise<void> {
+  const { FieldValue } = await import("firebase-admin/firestore");
+  const ws = await getWorkspaceById(wsId);
+  if (!ws) throw new Error("Workspace not found.");
+  if (ws.ownerId === userId) throw new Error("The workspace owner cannot be removed.");
+  const target = ws.members.find(member => member.userId === userId);
+  if (!target) throw new Error("That person is not a member of this workspace.");
+  await workspacesCol(db()).doc(wsId).update({
+    members: ws.members.filter(member => member.userId !== userId),
+    memberIds: FieldValue.arrayRemove(userId),
+    updatedAt: Timestamp.now(),
+  });
+}

@@ -61,6 +61,9 @@ export function useWorkspaceEvents(options: { enabled: boolean; currentUserId?: 
           if (payload.type === "comment_added" || payload.type === "subtask_updated") {
             utils.tasknest.task.detail.invalidate();
           }
+          if (payload.type === "member_removed" || payload.type === "member_role_changed") {
+            queryClient.invalidateQueries({ queryKey: [["tasknest", "workspace", "current"]] });
+          }
         } catch {
           // Ignore malformed frames; the stream reconnects on its own.
         }

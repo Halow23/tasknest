@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 
 // Secondary routes are code-split — only the active route loads.
 const AdminSettings = lazy(() => import("./pages/AdminSettings"));
+const AdminMembersPage = lazy(() => import("./pages/AdminMembersPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -21,6 +22,7 @@ function Router() {
         <Route path={"/profile"} component={ProfilePage} />
         <Route path={"/settings"} component={SettingsPage} />
         <Route path={"/admin/access"} component={AdminSettings} />
+        <Route path={"/admin/members"} component={AdminMembersPage} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
