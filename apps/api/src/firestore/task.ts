@@ -210,7 +210,17 @@ export async function getTaskDetail(wsId: string, taskId: string) {
   };
 }
 
-/** Search tasks by title prefix or comment body (trigram fallback). */
+/** Lowercase word tokens (from title + description) for denormalized keyword search. */
+export function buildSearchTokens(title: string, description?: string | null): string[] {
+  const words = `${title} ${description ?? ""}`
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 2);
+  // Cap keeps the array index small on chatty task descriptions.
+  return Array.from(new Set(words)).slice(0, 120);
+}
+
+/** Search tasks by title prefix and keyword tokens from titles + descriptions. */
 export async function searchTasks(input: {
   wsId: string;
   query: string;
@@ -218,15 +228,45 @@ export async function searchTasks(input: {
 }): Promise<TaskDoc[]> {
   const fs = db();
   const q = input.query.toLowerCase().trim();
-  // Prefix search on titleLower
-  const snap = await tasksCol(fs, input.wsId)
+  const tokens = buildSearchTokens(q);
+  if (!tokens.length) return [];
+
+  // 1) Title prefix matches (covers partial words the token index cannot).
+  const prefixBranch = tasksCol(fs, input.wsId)
     .where("deletedAt", "==", null)
     .where("titleLower", ">=", q)
     .where("titleLower", "<=", q + "\uf8ff")
     .orderBy("titleLower", "asc")
     .limit(input.limit)
     .get();
-  return snap.docs.map((d) => toTask(d.id, d.data() as Record<string, unknown>));
+
+  // 2) Keyword matches on the denormalized token array. Guarded so a missing
+  //    composite index degrades to prefix-only results instead of failing.
+  const tokenBranch = tasksCol(fs, input.wsId)
+    .where("deletedAt", "==", null)
+    .where("searchTokens", "array-contains", tokens[0])
+    .orderBy("updatedAt", "desc")
+    .limit(input.limit)
+    .get()
+    .catch(() => ({ docs: [] as Array<{ id: string; data: () => Record<string, unknown> }> }));
+
+  const [prefixSnap, tokenSnap] = await Promise.all([prefixBranch, tokenBranch]);
+  const byId = new Map<string, TaskDoc>();
+  for (const d of prefixSnap.docs) byId.set(d.id, toTask(d.id, d.data() as Record<string, unknown>));
+  for (const d of tokenSnap.docs) {
+    if (!byId.has(d.id)) byId.set(d.id, toTask(d.id, d.data() as Record<string, unknown>));
+  }
+
+  // Multi-word queries require every token to appear in title or description.
+  const matchesAllTokens = (task: TaskDoc) =>
+    tokens.every((token) => {
+      const haystack = `${task.titleLower} ${(task.description ?? "").toLowerCase()}`;
+      return haystack.includes(token);
+    });
+
+  return Array.from(byId.values())
+    .filter(matchesAllTokens)
+    .slice(0, input.limit);
 }
 
 // ── Task write helpers ───────────────────────────────────────────────────────
@@ -255,6 +295,7 @@ export async function createTask(input: {
     projectId: input.projectId,
     title: input.title,
     titleLower: input.title.toLowerCase(),
+    searchTokens: buildSearchTokens(input.title, input.description),
     description: input.description ?? null,
     status: "backlog" as TaskStatus,
     priority: input.priority,
@@ -313,6 +354,14 @@ export async function updateTask(
     } else {
       payload[key] = value;
     }
+  }
+  // Tokens combine title + description, so a partial update needs the other field.
+  if ("title" in updates || "description" in updates) {
+    const current = await ref.get();
+    const data = (current.data() ?? {}) as { title?: string; description?: string | null };
+    const nextTitle = (payload.title as string | undefined) ?? data.title ?? "";
+    const nextDescription = updates.description !== undefined ? updates.description : data.description ?? null;
+    payload.searchTokens = buildSearchTokens(nextTitle, nextDescription);
   }
   await ref.update(payload);
 }
