@@ -37,6 +37,7 @@ ${input.dueToday.length ? `<h2 style="font-size:14px;color:#a36a00;margin:16px 0
     subject,
     text,
     html,
+    messageId: `tasknest-digest/${input.recipientEmail}/${dateKey}@tasknest`,
   });
   return messageId;
 }

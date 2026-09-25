@@ -15,6 +15,20 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Split stable vendor code into cacheable chunks so app-code deploys
+        // don't force re-downloads of unchanged libraries.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("firebase")) return "firebase";
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|@tanstack|@trpc|wouter|superjson)[\\/]/.test(id)) return "react-vendor";
+          if (/[\\/]node_modules[\\/](date-fns|react-day-picker)[\\/]/.test(id)) return "date";
+          if (/[\\/]node_modules[\\/](@radix-ui|lucide-react|sonner|cmdk|class-variance-authority|clsx|tailwind-merge)[\\/]/.test(id)) return "ui-vendor";
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     host: true,

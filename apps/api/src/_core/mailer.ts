@@ -1,6 +1,6 @@
 import { ENV } from "./env";
 
-export type OutgoingEmail = { to: string; subject: string; text: string; html: string };
+export type OutgoingEmail = { to: string; subject: string; text: string; html: string; messageId?: string };
 
 /**
  * Sends email over HTTPS. Primary transport is the Gmail API (works everywhere,
@@ -33,11 +33,15 @@ function base64Body(content: string): string {
 
 function buildMime(email: OutgoingEmail): string {
   const boundary = `tn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-  return [
+  const headers = [
     `From: ${fromAddress()}`,
     `To: ${email.to}`,
     `Subject: ${encodeHeader(email.subject)}`,
     "MIME-Version: 1.0",
+  ];
+  if (email.messageId) headers.push(`Message-ID: <${email.messageId}>`);
+  return [
+    ...headers,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     "",
     `--${boundary}`,
@@ -102,6 +106,7 @@ async function sendViaSmtp(email: OutgoingEmail): Promise<{ messageId: string }>
     subject: email.subject,
     text: email.text,
     html: email.html,
+    ...(email.messageId ? { messageId: email.messageId } : {}),
   });
   return { messageId: info.messageId };
 }
