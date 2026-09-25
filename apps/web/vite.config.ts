@@ -18,7 +18,7 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 5173,
+    port: 5171,
     allowedHosts: ["localhost", "127.0.0.1"],
     // Dev proxy to the separated API (apps/api, port 3001). Keeps relative
     // URLs (/api/trpc, /api/events SSE) working while the two apps run as

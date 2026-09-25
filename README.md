@@ -51,7 +51,7 @@ A full-stack task management app: projects and tasks with labels, dependencies, 
 tasknest/
 ├── apps/
 │   ├── api/        # Express + tRPC API (port 3001)
-│   └── web/        # React + Vite frontend (port 5173)
+│   └── web/        # React + Vite frontend (port 5171)
 ├── packages/
 │   └── shared/     # Shared types & utilities
 ├── firebase.json           # Hosting, Firestore & Storage rules, emulators
@@ -112,10 +112,10 @@ This starts both servers:
 
 | App | URL |
 |---|---|
-| Web (Vite) | http://localhost:5173 |
+| Web (Vite) | http://localhost:5171 |
 | API (tRPC) | http://localhost:3001 |
 
-Open **http://localhost:5173** — API requests are proxied through Vite, so you never touch 3001 directly.
+Open **http://localhost:5171** — API requests are proxied through Vite, so you never touch 3001 directly.
 
 > **Windows note:** the `dev` script uses `&` to background the API, which behaves as a *sequential* separator on Windows — the web server may never start. If that happens, run each in its own terminal:
 >

@@ -116,3 +116,5 @@ apps/web/public/__manus__/version.json
 
 # Firebase credentials
 firebase-service-account.json
+.vercel
+.env*

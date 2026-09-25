@@ -8,7 +8,7 @@ export const ENV = {
   // Shared secret required by the /api/scheduled/* cron endpoints.
   cronSecret: process.env.CRON_SECRET ?? "",
   // Comma-separated list of browser origins allowed to call the API.
-  allowedOrigins: process.env.ALLOWED_ORIGINS ?? "http://localhost:5173",
+  allowedOrigins: process.env.ALLOWED_ORIGINS ?? "http://localhost:5171",
   smtpHost: process.env.SMTP_HOST ?? "",
   smtpPort: parseInt(process.env.SMTP_PORT ?? "587", 10),
   smtpUser: process.env.SMTP_USER ?? "",

@@ -7,7 +7,7 @@ import { registerWorkspaceEvents } from "./workspaceEvents";
 import { registerScheduledJobs } from "./scheduledRoutes";
 import { createContext } from "./context";
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5171")
   .split(",")
   .map(origin => origin.trim())
   .filter(Boolean);

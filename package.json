@@ -9,6 +9,7 @@
     "dev:api": "pnpm --filter @tasknest/api dev",
     "dev:web": "pnpm --filter @tasknest/web dev",
     "build": "pnpm -r build",
+    "start": "node apps/api/dist/index.js",
     "check": "pnpm -r check",
     "test": "pnpm -r test",
     "format": "prettier --write ."
