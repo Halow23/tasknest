@@ -49,6 +49,7 @@ import {
   removeChatGroupMember,
   sendChatMessage,
 } from "../firestore/chat";
+import { storagePresignImagePutUrl } from "../storage";
 import {
   addSubtask,
   assertTaskMember,
@@ -432,6 +433,7 @@ export const tasknestRouter = router({
           name: input.name,
           color: input.color,
           description: input.description ?? null,
+          imageUrl: null,
           archived: false,
           deletedAt: null,
           createdById: ctx.user.id,
@@ -450,6 +452,7 @@ export const tasknestRouter = router({
         name: z.string().trim().min(1).max(120).optional(),
         description: z.string().trim().max(2000).nullable().optional(),
         color: z.string().regex(/^#[A-Fa-f0-9]{6}$/).optional(),
+        imageUrl: z.string().url().max(500).nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
@@ -459,8 +462,21 @@ export const tasknestRouter = router({
         if (input.name !== undefined) updates.name = input.name;
         if (input.description !== undefined) updates.description = input.description;
         if (input.color !== undefined) updates.color = input.color;
+        if (input.imageUrl !== undefined) updates.imageUrl = input.imageUrl;
         await ref.update(updates);
         return getProjectById(input.workspaceId, input.projectId);
+      }),
+
+    presignImage: protectedProcedure
+      .input(z.object({
+        projectId: z.string().min(1),
+        workspaceId: z.string().min(1),
+        filename: z.string().trim().min(1).max(120),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await assertWorkspaceMember(input.workspaceId, ctx.user.id);
+        const ext = (input.filename.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        return storagePresignImagePutUrl(`projects/${input.projectId}/${Date.now()}.${ext}`);
       }),
 
     delete: protectedProcedure

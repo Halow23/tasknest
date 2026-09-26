@@ -1,5 +1,6 @@
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/Hint";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,17 +22,18 @@ export function ThemeToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={`Color theme: ${theme}. Change theme`}
-          title={`Color theme: ${theme}`}
-          className="h-8 w-8"
-        >
-          {resolvedTheme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-        </Button>
-      </DropdownMenuTrigger>
+      <Hint label={`Color theme: ${theme}`} side="bottom">
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={`Color theme: ${theme}. Change theme`}
+            className="h-8 w-8"
+          >
+            {resolvedTheme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          </Button>
+        </DropdownMenuTrigger>
+      </Hint>
       <DropdownMenuContent align="end">
         {OPTIONS.map(option => {
           const Icon = option.icon;

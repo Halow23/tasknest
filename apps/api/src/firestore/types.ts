@@ -130,6 +130,7 @@ export type ProjectDoc = {
   name: string;
   description: string | null;
   color: string;
+  imageUrl: string | null;
   archived: boolean;
   deletedAt: Date | null;
   createdById: string;

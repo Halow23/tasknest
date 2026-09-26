@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { trpc } from "@/lib/trpc";
+import { Hint } from "@/components/Hint";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatTime } from "@/pages/home/helpers";
 import { cn } from "@/lib/utils";
@@ -54,12 +55,14 @@ export function NotificationBell({ onSelectTask }: { onSelectTask: (taskId: stri
   };
 
   return <Popover open={open} onOpenChange={setOpen}>
-    <PopoverTrigger asChild>
-      <Button type="button" variant="outline" size="icon" className="relative h-8 w-8 rounded-lg" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
-        <Bell className="h-3.5 w-3.5" />
-        {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B5E] px-1 text-[8px] font-extrabold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-      </Button>
-    </PopoverTrigger>
+    <Hint label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="icon" className="relative h-8 w-8 rounded-lg" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}>
+          <Bell className="h-3.5 w-3.5" />
+          {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B5E] px-1 text-[8px] font-extrabold text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+        </Button>
+      </PopoverTrigger>
+    </Hint>
     <PopoverContent align="end" className="w-80 p-0">
       <div className="flex items-center justify-between border-b border-[#E5EDF2] px-4 py-3">
         <p className="text-sm font-extrabold text-[#27445D]">Notifications</p>

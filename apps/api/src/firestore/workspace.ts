@@ -247,6 +247,7 @@ function toProject(id: string, raw: Record<string, unknown>): ProjectDoc {
     name: raw.name as string,
     description: (raw.description as string | null) ?? null,
     color: (raw.color as string) ?? "#38A9F2",
+    imageUrl: (raw.imageUrl as string | null) ?? null,
     archived: (raw.archived as boolean) ?? false,
     deletedAt: toDateOrNull(raw.deletedAt),
     createdById: raw.createdById as string,
