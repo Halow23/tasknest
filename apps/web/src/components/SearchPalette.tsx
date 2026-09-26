@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { trpc } from "@/lib/trpc";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/pages/home/helpers";
 
 type SearchResult = { id: string; title: string; description?: string | null; status: string; priority: string; dueAt: Date | null; projectId: string; projectName?: string; projectColor?: string };
@@ -35,7 +36,7 @@ export function SearchPalette({ open, onOpenChange, workspaceId, onSelectTask }:
         <CommandInput value={query} onValueChange={setQuery} placeholder="Search tasks and details…" className="h-12 text-sm" />
         <CommandList>
           {debounced.length === 0 && <div className="p-6 text-center text-xs text-[#718A9A]">Type to search every task in your workspace.</div>}
-          {debounced.length > 0 && search.isLoading && <div className="p-6 text-center text-xs text-[#718A9A]">Searching…</div>}
+          {debounced.length > 0 && search.isLoading && <div role="status" aria-busy="true" className="space-y-3 p-4">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="flex items-center gap-2.5"><Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" /><Skeleton className="h-3.5 flex-1" /><Skeleton className="h-3 w-20 shrink-0" /></div>)}</div>}
           {debounced.length > 0 && !search.isLoading && (search.data ?? []).length === 0 && <CommandEmpty>No tasks match “{debounced}”.</CommandEmpty>}
           {search.data && search.data.length > 0 && <CommandGroup heading="Tasks">
             {search.data.map((task: SearchResult) => <CommandItem key={task.id} value={String(task.id)} onSelect={() => handleSelect(task.id)} className="cursor-pointer">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Tags, X } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonRows } from "@/components/Loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +50,7 @@ export function LabelPicker({ workspaceId, selectedIds, onChange }: { workspaceI
         <PopoverContent className="w-64 p-3" align="start">
           <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#90A1AB]">Workspace labels</p>
           <div className="mt-2 max-h-44 space-y-1 overflow-y-auto">
-            {labelsQuery.isLoading && <p className="text-[11px] text-[#718A9A]">Loading labels…</p>}
+            {labelsQuery.isLoading && <div role="status" aria-busy="true"><SkeletonRows rows={2} /></div>}
             {labels.length === 0 && !labelsQuery.isLoading && <p className="text-[11px] text-[#718A9A]">No labels yet — create the first one below.</p>}
             {labels.map(label => {
               const active = selectedIds.includes(label.id);

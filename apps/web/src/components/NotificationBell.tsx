@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { trpc } from "@/lib/trpc";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatTime } from "@/pages/home/helpers";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +66,7 @@ export function NotificationBell({ onSelectTask }: { onSelectTask: (taskId: stri
         {unreadCount > 0 && <Button type="button" variant="ghost" size="sm" disabled={markAllRead.isPending} onClick={() => markAllRead.mutate()} className="h-7 text-[10px] font-extrabold text-[#247EAF]"><CheckCheck className="mr-1 h-3 w-3" />Mark all read</Button>}
       </div>
       <div className="max-h-96 overflow-y-auto">
-        {list.isLoading && <p className="p-4 text-center text-xs text-[#718A9A]">Loading notifications…</p>}
+        {list.isLoading && <div role="status" aria-busy="true" className="space-y-3 p-4">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="flex items-start gap-2.5"><Skeleton className="mt-0.5 h-2 w-2 shrink-0 rounded-full" /><div className="min-w-0 flex-1 space-y-1.5"><Skeleton className="h-3 w-full" /><Skeleton className="h-2.5 w-1/3" /></div></div>)}</div>}
         {!list.isLoading && rows.length === 0 && <div className="p-6 text-center"><Bell className="mx-auto h-5 w-5 text-[#9BAAB3]" /><p className="mt-2 text-xs text-[#718A9A]">You're all caught up. Assignments and comments will appear here.</p></div>}
         {rows.map((row: NotificationRow) => <button key={row.id} type="button" onClick={() => openNotification(row)} className={cn("flex w-full items-start gap-2.5 border-b border-[#EEF3F5] px-4 py-3 text-left last:border-0 hover:bg-[#F8FBFC]", !row.readAt && "bg-[#F3FAFF]")}>
           <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", !row.readAt ? "bg-[#FF6B5E]" : "bg-transparent")} />

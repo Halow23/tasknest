@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bot, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonRows } from "@/components/Loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -49,7 +50,7 @@ export function AutomationSettingsDialog({ open, onOpenChange, workspaceId, memb
         <DialogDescription>Rules run automatically when their trigger fires. They never cascade into other rules.</DialogDescription>
       </DialogHeader>
       <div className="space-y-2">
-        {rulesQuery.isLoading && <p className="text-[11px] text-[#718A9A]">Loading rules…</p>}
+        {rulesQuery.isLoading && <div role="status" aria-busy="true"><SkeletonRows rows={2} /></div>}
         {(rulesQuery.data ?? []).length === 0 && !rulesQuery.isLoading && <p className="rounded-xl border border-dashed border-[#D7E5EB] bg-[#F8FBFC] p-4 text-center text-[11px] text-[#718A9A]">No automations yet. Create one below to put routine work on autopilot.</p>}
         {((rulesQuery.data ?? []) as any[]).map(rule => <div key={rule.id} className="flex items-center gap-3 rounded-xl border border-[#E2EBF0] bg-white p-3">
           <Bot className="h-4 w-4 shrink-0 text-[#2680B5]" />

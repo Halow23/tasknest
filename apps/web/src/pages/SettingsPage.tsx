@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { PageLoading } from "@/components/Loading";
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string; icon: typeof Sun; hint: string }> = [
   { value: "light", label: "Light", icon: Sun, hint: "Porcelain surfaces, blue ink" },
@@ -33,7 +34,7 @@ export default function SettingsPage() {
   const emailDigest = user?.preferences?.emailDigest ?? true;
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center bg-[#F7FAFB] text-sm font-bold text-[#5F7E91]">Opening settings…</main>;
+    return <PageLoading label="Opening settings" />;
   }
 
   if (!isAuthenticated || !user) {

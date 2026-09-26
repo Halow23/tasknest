@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
+import { PageLoading } from "@/components/Loading";
 
 function initials(value: string | null | undefined) {
   const words = (value ?? "").trim().split(/\s+/).filter(Boolean);
@@ -56,7 +57,7 @@ export default function ProfilePage() {
   };
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center bg-[#F7FAFB] text-sm font-bold text-[#5F7E91]">Opening profile…</main>;
+    return <PageLoading label="Opening profile" />;
   }
 
   if (!isAuthenticated || !user) {

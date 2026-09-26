@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Shapes, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { SkeletonRows } from "@/components/Loading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +48,7 @@ export function ProjectFieldsManager({ projectId, workspaceId }: { projectId: st
       <Badge variant="outline" className="border-0 bg-[#EAF6FF] text-[10px] font-bold text-[#2776A5]">{fieldsQuery.data?.length ?? 0} field{(fieldsQuery.data?.length ?? 0) === 1 ? "" : "s"}</Badge>
     </div>
     <div className="mt-3 space-y-2">
-      {fieldsQuery.isLoading && <p className="text-[11px] text-[#718A9A]">Loading fields…</p>}
+      {fieldsQuery.isLoading && <div role="status" aria-busy="true"><SkeletonRows rows={2} /></div>}
       {fields.length === 0 && !fieldsQuery.isLoading && <p className="rounded-lg border border-dashed border-[#D7E5EB] bg-white p-3 text-center text-[11px] text-[#718A9A]">No custom fields yet. Add one to capture details that matter to this project.</p>}
       {fields.map(field => <div key={field.id} className="flex items-center gap-3 rounded-lg border border-[#E2EBF0] bg-white p-3">
         <div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-[#294A62]">{field.name}</p>{field.type === "select" && field.options?.length ? <p className="mt-0.5 truncate text-[10px] text-[#78909F]">{field.options.join(" · ")}</p> : null}</div>

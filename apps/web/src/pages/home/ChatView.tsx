@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { ChatGroupsSkeleton } from "@/components/Loading";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { formatDate } from "./helpers";
@@ -90,7 +92,7 @@ export function ChatView({ workspaceId, members, currentUserId }: { workspaceId:
   };
 
   return <main className="flex min-h-0 flex-1 flex-col bg-[#FBFCFD]">
-    {groupsQuery.isLoading ? <div className="flex flex-1 items-center justify-center text-sm font-bold text-[#79909E]">Loading conversations…</div> : <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+    {groupsQuery.isLoading ? <div className="flex min-h-0 flex-1 flex-col md:flex-row"><aside aria-hidden className="flex max-h-56 shrink-0 flex-col overflow-hidden border-b border-[#E2EBF0] bg-white md:max-h-none md:w-64 md:border-b-0 md:border-r"><ChatGroupsSkeleton /></aside><section className="flex flex-1 items-center justify-center"><Spinner className="h-5 w-5 text-[#38A9F2]" /></section></div> : <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       <aside aria-label="Chat groups" className="flex max-h-56 shrink-0 flex-col overflow-hidden border-b border-[#E2EBF0] bg-white md:max-h-none md:w-64 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between px-4 py-3"><p className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#9BAAB3]">Groups</p><Button size="sm" variant="outline" onClick={() => setCreateOpen(true)} aria-label="Create group" className="h-7 px-2 text-[10px] text-[#2B789F]"><Plus className="mr-1 h-3 w-3" />New</Button></div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">{groups.length === 0 ? <p className="px-2 py-3 text-xs text-[#8A9BA6]">No groups yet. Create one to start talking.</p> : groups.map(group => <button key={group.id} onClick={() => setSelectedGroupId(group.id)} aria-current={selectedGroupId === group.id || undefined} className={cn("flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left", selectedGroupId === group.id ? "bg-[#EAF6FF]" : "hover:bg-[#F4F8FA]")}>
