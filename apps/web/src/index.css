@@ -623,10 +623,14 @@ html.dark { background: oklch(0.185 0.02 255); }
 /*
  * Dark mode hides the decorative light-only artworks (wave banner, orbit
  * card, sign-in wave) — the TaskNest logo <img> is kept everywhere.
+ * The banner overrides sit in @layer utilities because the light rule's
+ * !important is layered (components); layered !important beats unlayered.
  */
-.dark #root main > div > section > div.relative { background-color: oklch(0.28 0.04 250) !important; }
-.dark #root main > div > section > div.relative::after { background-image: none; }
-.dark #root main > div > section > div.relative > div > div:first-child > p { color: oklch(0.87 0.014 232) !important; }
-.dark #root main > div > section > div.relative > div > div:last-child > span { color: oklch(0.70 0.018 235) !important; }
+@layer utilities {
+  .dark #root main > div > section > div.relative { background-color: oklch(0.28 0.04 250) !important; }
+  .dark #root main > div > section > div.relative::after { background-image: none !important; }
+  .dark #root main > div > section > div.relative > div > div:first-child > p { color: oklch(0.87 0.014 232) !important; }
+  .dark #root main > div > section > div.relative > div > div:last-child > span { color: oklch(0.70 0.018 235) !important; }
+}
 .dark #root aside > div.mt-auto::after { background-image: none; }
 .dark #root > main.p-5 > div > section::after { background: none; }
