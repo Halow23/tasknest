@@ -62,16 +62,20 @@ export function ChatView({ workspaceId, members, currentUserId }: { workspaceId:
 
   const sendMessage = trpc.tasknest.chat.messagesSend.useMutation({
     onMutate: variables => {
-      setPending(current => [...current, { id: `pending-${Date.now()}`, groupId: variables.groupId, authorId: currentUserId ?? "me", authorName: "You", body: variables.body, createdAt: new Date() }]);
+      const optimisticId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setPending(current => [...current, { id: optimisticId, groupId: variables.groupId, authorId: currentUserId ?? "me", authorName: "You", body: variables.body, createdAt: new Date() }]);
       setDraft("");
+      return { optimisticId };
     },
-    onError: error => {
-      setPending(current => current.slice(0, -1));
+    onError: (error, _variables, context) => {
+      if (context?.optimisticId) setPending(current => current.filter(message => message.id !== context.optimisticId));
       toast.error(error.message);
     },
-    onSettled: () => {
-      setPending(current => current.slice(1));
-      invalidate();
+    onSettled: async (_data, _error, _variables, context) => {
+      // Keep the optimistic bubble until the refetched list contains the
+      // server copy — removing it earlier made sent messages blink away.
+      await utils.tasknest.chat.groupsList.invalidate();
+      if (context?.optimisticId) setPending(current => current.filter(message => message.id !== context.optimisticId));
     },
   });
 
