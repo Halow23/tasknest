@@ -32,7 +32,7 @@ describe("recurring tasks", () => {
     expect(source).toContain("await addSubtask(wsId, nextTask.id, s.title);");
   });
 
-  it("renders recurrence pickers in both dialogs and badges on tasks", async () => {
+  it("renders recurrence pickers in both dialogs", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
     const card = await readFile(new URL("./home/dialogs.tsx", import.meta.url), "utf8");
@@ -42,6 +42,8 @@ describe("recurring tasks", () => {
     expect(drawer).toContain('id="edit-recurrence"');
     expect(drawer).toContain("recurrenceRule: recurrence");
     expect(drawer).toContain('{task.recurrenceRule && task.recurrenceRule !== "none"');
-    expect(card).toContain("task.recurrenceRule");
+    // The board card is deliberately minimal — recurrence is surfaced in the
+    // drawer only, so it must NOT appear on the card.
+    expect(card).not.toContain("task.recurrenceRule");
   });
 });

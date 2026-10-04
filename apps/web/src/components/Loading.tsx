@@ -33,34 +33,30 @@ export function SkeletonRows({ rows = 3, className }: { rows?: number; className
   );
 }
 
-/** Task-card skeleton matching the TaskCard shape (badge, title, meta, footer). */
+/** Task-card skeleton matching the TaskCard shape (priority, title, date). */
 function TaskCardSkeleton() {
   return (
-    <div className="rounded-xl border border-[#E5EDF2] bg-white p-3.5">
-      <Skeleton className="h-4 w-14 rounded-md" />
-      <Skeleton className="mt-3 h-3.5 w-full" />
-      <Skeleton className="mt-1.5 h-3.5 w-3/5" />
-      <div className="mt-3 flex items-center justify-between">
-        <Skeleton className="h-4 w-12 rounded-md" />
-        <Skeleton className="h-3.5 w-16" />
+    <div className="rounded-tn-card bg-card p-3 shadow-tn-card">
+      <div className="flex items-start justify-between">
+        <Skeleton className="h-[22px] w-12 rounded-tn-chip" />
+        <Skeleton className="h-5 w-10 rounded-full" />
       </div>
-      <div className="mt-3 flex items-center justify-between border-t border-[#EDF2F5] pt-3">
-        <Skeleton className="h-5 w-14 rounded-full" />
-        <Skeleton className="h-3 w-20" />
-      </div>
+      <Skeleton className="mt-2 h-3.5 w-full" />
+      <Skeleton className="mt-1 h-3.5 w-3/5" />
+      <Skeleton className="mt-1 h-3.5 w-16" />
     </div>
   );
 }
 
-/** Board-shaped skeleton: four kanban lanes of task-card skeletons. */
+/** Board-shaped skeleton: five kanban lanes of task-card skeletons. */
 export function BoardSkeleton() {
   return (
-    <div role="status" aria-busy="true" aria-label="Loading board" className="flex-1 overflow-x-auto">
-      <div className="grid min-w-[880px] grid-cols-4 gap-3 p-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, lane) => (
-          <div key={lane} className="rounded-2xl bg-[#F1F5F7] p-2.5">
-            <Skeleton className="h-6 w-28 rounded-lg" />
-            <div className="mt-2 space-y-2">
+    <div role="status" aria-busy="true" aria-label="Loading board" className="flex-1 overflow-x-auto px-6 py-6 lg:pe-7">
+      <div className="grid w-max grid-flow-col auto-cols-[273px] gap-2">
+        {Array.from({ length: 5 }).map((_, lane) => (
+          <div key={lane} className="rounded-tn-column bg-tn-surface-column pt-3">
+            <Skeleton className="ml-3 h-5 w-28 rounded-md" />
+            <div className="mt-2 space-y-2 px-1.5 pb-1.5">
               <TaskCardSkeleton />
               {lane < 3 && <TaskCardSkeleton />}
             </div>

@@ -26,7 +26,7 @@
 // ── Scalar value types ──────────────────────────────────────────────────────
 
 export type UserRole = "user" | "admin";
-export type TaskStatus = "backlog" | "progress" | "review" | "done";
+export type TaskStatus = "backlog" | "todo" | "progress" | "review" | "done";
 export type TaskPriority = "high" | "medium" | "low";
 export type TaskRecurrence = "none" | "daily" | "weekly" | "monthly";
 export type ProjectFieldType = "text" | "select" | "date";

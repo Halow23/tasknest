@@ -1,11 +1,11 @@
-export type KanbanStatus = "backlog" | "progress" | "review" | "done";
+export type KanbanStatus = "backlog" | "todo" | "progress" | "review" | "done";
 
 export type NavigableTask = {
   id: string;
   status: KanbanStatus;
 };
 
-const lanes: KanbanStatus[] = ["backlog", "progress", "review", "done"];
+const lanes: KanbanStatus[] = ["backlog", "todo", "progress", "review", "done"];
 
 /**
  * Return the task that directional board navigation should focus, if any.

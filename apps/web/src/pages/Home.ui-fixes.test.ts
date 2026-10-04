@@ -6,9 +6,10 @@ describe("ui fixes round", () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
     const board = await readFile(new URL("./home/BoardView.tsx", import.meta.url), "utf8");
 
-    // the only grid-cols-4 lane grid must live inside BoardView, not wrapped around it
-    expect(board).toContain('grid min-w-[880px] grid-cols-4 gap-4');
-    expect(home).not.toContain('<div className="grid min-w-[880px] grid-cols-4 gap-4"><BoardView');
+    // The lane grid must live inside BoardView, not be wrapped around it.
+    // Columns are fixed-width and scroll horizontally, matching the reference.
+    expect(board).toContain('grid h-full w-max grid-flow-col auto-cols-[273px] gap-2');
+    expect(home).not.toContain('grid-flow-col auto-cols-[273px] gap-2"><BoardView');
     expect(home).toContain('view === "board" ? <BoardView tasks={tasks}');
     expect(home).not.toContain('onNewTask={() => setNewTaskOpen(true)} /></>');
   });

@@ -100,7 +100,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 
 // ── Validation schemas ───────────────────────────────────────────────────────
 
-const taskStatusSchema = z.enum(["backlog", "progress", "review", "done"]);
+const taskStatusSchema = z.enum(["backlog", "todo", "progress", "review", "done"]);
 const taskPrioritySchema = z.enum(["high", "medium", "low"]);
 const projectFieldTypeSchema = z.enum(["text", "select", "date"]);
 const taskRecurrenceSchema = z.enum(["none", "daily", "weekly", "monthly"]);
@@ -638,6 +638,7 @@ export const tasknestRouter = router({
         title: z.string().trim().min(1).max(240),
         description: z.string().trim().max(8000).optional(),
         priority: taskPrioritySchema.default("medium"),
+        status: taskStatusSchema.optional(),
         dueAt: z.date().nullable().optional(),
         recurrenceRule: taskRecurrenceSchema.optional(),
         assigneeIds: z.array(z.string().min(1)).max(20).optional(),
@@ -664,6 +665,7 @@ export const tasknestRouter = router({
           title: input.title,
           description: input.description,
           priority: input.priority,
+          status: input.status,
           recurrenceRule: input.recurrenceRule,
           dueAt: input.dueAt,
           createdById: ctx.user.id,
@@ -1357,7 +1359,7 @@ export const tasknestRouter = router({
         const today = new Date();
         const upcoming = new Date(today);
         upcoming.setDate(today.getDate() + 7);
-        const byStatus: Record<TaskStatus, number> = { backlog: 0, progress: 0, review: 0, done: 0 };
+        const byStatus: Record<TaskStatus, number> = { backlog: 0, todo: 0, progress: 0, review: 0, done: 0 };
         for (const t of tasks) byStatus[t.status] = (byStatus[t.status] ?? 0) + 1;
         const total = tasks.length;
         const dueThisWeek = tasks.filter((t) => t.dueAt && t.dueAt >= today && t.dueAt <= upcoming && t.status !== "done").length;

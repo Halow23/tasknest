@@ -277,6 +277,8 @@ export async function createTask(input: {
   title: string;
   description?: string;
   priority: TaskPriority;
+  /** Board column the task lands in. Defaults to the top of the board. */
+  status?: TaskStatus;
   recurrenceRule?: TaskRecurrence;
   dueAt?: Date | null;
   createdById: string;
@@ -297,7 +299,7 @@ export async function createTask(input: {
     titleLower: input.title.toLowerCase(),
     searchTokens: buildSearchTokens(input.title, input.description),
     description: input.description ?? null,
-    status: "backlog" as TaskStatus,
+    status: (input.status ?? "backlog") as TaskStatus,
     priority: input.priority,
     recurrenceRule: input.recurrenceRule ?? "none",
     dueAt: input.dueAt ? Timestamp.fromDate(input.dueAt) : null,

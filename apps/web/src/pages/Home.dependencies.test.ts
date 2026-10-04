@@ -27,7 +27,7 @@ describe("task dependencies", () => {
     expect(source).toContain("openDependencies: openDeps,");
   });
 
-  it("renders the Blocked by drawer section and card badge", async () => {
+  it("renders the Blocked by drawer section", async () => {
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
     const card = await readFile(new URL("./home/dialogs.tsx", import.meta.url), "utf8");
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
@@ -35,8 +35,10 @@ describe("task dependencies", () => {
     expect(drawer).toContain('aria-label="Blocked by"');
     expect(drawer).toContain("tasknest.dependency.list");
     expect(drawer).toContain("addDependency.mutate({ taskId: task.id, workspaceId, dependsOnTaskId: dependencySelect })");
-    expect(card).toContain("blockedByCount");
-    expect(card).toContain(">Blocked</Badge>");
+    // The board card is deliberately minimal — dependency state lives in the
+    // drawer only, so the badge must not reappear on the card.
+    expect(card).not.toContain("blockedByCount");
+    expect(card).not.toContain(">Blocked</Badge>");
     expect(home).toContain("projectTasks={tasks.map(task => ({ id: task.id, title: task.title, status: task.status }))}");
   });
 });
