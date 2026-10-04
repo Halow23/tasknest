@@ -13,8 +13,8 @@ export function WorkloadView({ tasks, assignments, members, onOpenTask }: {
 }) {
   const entries = groupWorkload(tasks, assignments, members);
   return <div className="flex-1 overflow-auto p-5 lg:p-7">
-    <h2 className="font-['DM_Serif_Display'] text-3xl">Who is carrying what.</h2>
-    <p className="mt-1 text-sm text-[#718A9A]">Open work per teammate in {""}this project, heaviest first.</p>
+    <h2 className="text-tn-title-2 font-medium text-foreground">Who is carrying what.</h2>
+    <p className="mt-1 text-tn-body text-tn-text-secondary">Open work per teammate in {""}this project, heaviest first.</p>
     {entries.length === 0 && <div className="mt-10 rounded-2xl border border-dashed border-[#D7E5EB] bg-white p-8 text-center text-sm text-[#7F94A1]">No teammates to show yet.</div>}
     <div className="mt-6 space-y-3">
       {entries.map(entry => <section key={entry.member.id} aria-label={`Workload for ${entry.member.name || entry.member.email || "Teammate"}`} className="rounded-2xl border border-[#E2EBF0] bg-white p-4">

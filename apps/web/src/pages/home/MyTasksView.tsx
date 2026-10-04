@@ -36,8 +36,8 @@ export function MyTasksView({ tasks, onOpenTask }: { tasks: MyTask[]; onOpenTask
     grouped.set(bucket, [...(grouped.get(bucket) ?? []), task]);
   });
   return <div className="flex-1 overflow-auto p-5 lg:p-7">
-    <h2 className="font-['DM_Serif_Display'] text-3xl">Your plate, across every project.</h2>
-    <p className="mt-1 text-sm text-[#718A9A]">Every open task assigned to you, ordered by urgency.</p>
+    <h2 className="text-tn-title-2 font-medium text-foreground">Your plate, across every project.</h2>
+    <p className="mt-1 text-tn-body text-tn-text-secondary">Every open task assigned to you, ordered by urgency.</p>
     {tasks.length === 0 && <div className="mt-10 flex max-w-md flex-col items-center rounded-2xl border border-dashed border-[#D7E5EB] bg-white p-8 text-center">
       <CheckCircle2 className="h-8 w-8 text-[#6EBB92]" />
       <p className="mt-3 text-sm font-extrabold text-[#27445D]">Nothing assigned to you right now.</p>

@@ -8,8 +8,8 @@ import { priorityStyle } from "./types";
 export function TimelineView({ tasks, onOpenTask }: { tasks: TimelineTask[]; onOpenTask: (taskId: string) => void }) {
   const { bars } = timelineBarPercents(tasks);
   return <div className="flex-1 overflow-auto p-5 lg:p-7">
-    <h2 className="font-['DM_Serif_Display'] text-3xl">Work over time.</h2>
-    <p className="mt-1 text-sm text-[#718A9A]">Each bar spans from task creation to its deadline; the blue line is today.</p>
+    <h2 className="text-tn-title-2 font-medium text-foreground">Work over time.</h2>
+    <p className="mt-1 text-tn-body text-tn-text-secondary">Each bar spans from task creation to its deadline; the blue line is today.</p>
     {bars.length === 0 && <div className="mt-10 rounded-2xl border border-dashed border-[#D7E5EB] bg-white p-8 text-center text-sm text-[#7F94A1]">No tasks to place on the timeline yet.</div>}
     {bars.length > 0 && <div className="mt-6 rounded-2xl border border-[#E0EAF0] bg-white p-4">
       <div className="relative" role="list" aria-label="Task timeline">
