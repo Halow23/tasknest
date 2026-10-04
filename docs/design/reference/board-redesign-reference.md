@@ -11,6 +11,12 @@
 `boardui-notifications.png`, `boardui-after-create.png` (all in this folder)
 **Status:** reference only — see [Provenance & constraints](#provenance--constraints)
 
+> **Implementation status.** This reference has been implemented on branch
+> `redesign/board-boardui-reference`. What shipped, and where it deviates from
+> the sections below, is recorded in [§9 Implementation notes](#9-implementation-notes)
+> at the end of this document. The sections above are left as captured, so they
+> remain an accurate record of the source.
+
 ---
 
 ## 1. Why this reads better than our current board
@@ -660,3 +666,98 @@ immediately.** Everything else is polish by comparison.
 - **Two controls in the reference are inert in the demo** (`⋯` on columns, `Open project inbox`). Treat them as *visual* reference only; there is no behaviour to copy.
 - **Two behaviours are deliberately not recommended for copy:** silent empty-submit blocking (§6.1), and the absence of any delete affordance (§6.4). TaskNest already has typed-confirmation delete and restore flows that are strictly better.
 - All interaction findings in §6 were produced by driving the live page; the board state was restored by reload afterwards (§6.7).
+
+---
+
+## 9. Implementation notes
+
+Branch `redesign/board-boardui-reference`. Eight commits, each independently
+reviewable and passing.
+
+| Commit | Scope |
+|---|---|
+| `1080f24` | Readability: token layer, grey family, dark-mode hierarchy |
+| `4fbe66e` | 5-column board, reference card |
+| `4778b77` | Remove recurrence + dependencies |
+| `b2b7de5` | WIP limits |
+| `2d3c9b7` | App shell: sidebar, header, primary button |
+| `e149f10` | Create composer |
+| `bb10143` | Ticket sheet properties row |
+| `12e859a` | Density setting fix |
+
+### Where it follows the reference
+
+- Column surface `#f7f7f7`, 20px radius, full height, 273px wide, 8px apart
+- Card: four rows, 12px radius, `0 1px 1px` shadow, no borders, no per-card menu
+- Collapsed property pickers in the composer, with the priority pill reused as
+  the picker option
+- Sidebar as a floating 24px-radius panel inset 12px
+- Blue gradient primary button (`#2b7fff → #155dfc`) with a top highlight
+- Inline Properties row in the ticket sheet
+
+### Where it deviates, and why
+
+- **Column count.** The reference has 5 columns; so do we, but our status enum
+  gained `todo` between `backlog` and `progress`, and existing tasks keep
+  status `backlog`. No data migration.
+- **Card identity row.** The reference leads with a ticket key (`DS-38`) and
+  project name. Our ids are Firestore document ids, not human-readable keys, so
+  the card leads with priority + assignees instead.
+- **Column counts.** The reference shows `3/8` as a WIP limit it does not let
+  you edit. Ours are editable per column via the `⋯` popover, and are advisory
+  — a column over its limit is flagged red, never blocked.
+- **Empty-submit behaviour.** Not copied. The composer disables submit and
+  shows an inline message once the title is touched and cleared (§6.1).
+- **DM Serif Display.** Dropped from the workspace views (board, calendar,
+  timeline, workload, my tasks, analytics) and the header, in favour of the
+  single-family type scale. **Retained** on the sign-in and admin screens,
+  which are outside this redesign's scope — so the app is not yet on one family
+  throughout.
+- **Banner.** Left as-is. Its `bg-[#EAF7FE]` utility has never rendered —
+  `index.css` forces `background-color: #ffffff !important` on that element,
+  and the same rule already pins both paragraphs to `#245779` (7.7:1).
+- **Recurrence and dependencies.** Removed end to end rather than hidden, so
+  nothing keeps running behind a UI that no longer surfaces it. Stored
+  `recurrenceRule` and `dependencies` fields remain on existing documents and
+  on `TaskDoc`/`TemplateDoc`; they are inert, and leaving them avoids a
+  destructive migration.
+
+### Incidental fixes found along the way
+
+- **Dark mode had no text hierarchy.** Every secondary grey remapped to
+  `oklch(0.93 0 0)`, within 2% of the `0.95` primary. Now `0.72`, restoring a
+  16:1 vs 7.5:1 split.
+- **`#8AA0AF` had no dark rule** and rendered dark-on-dark.
+- **`.section-label` used `@apply`,** so its hex never reached the class
+  attribute and neither remap layer could reach it. Now reads the token.
+- **The Settings density toggle never worked.** Its rules were unlayered, and
+  unlayered declarations lose to Tailwind's layered utilities. Now in
+  `@layer components`, and retargeted to the current card structure.
+- **Duplicate `data-task-id`** on the card wrapper meant Home's bare
+  `[data-task-id]` selector matched the non-focusable wrapper, so that
+  handler's `.focus()` was a no-op. Removed from the wrapper.
+
+### Verification
+
+- 37 web test files / 105 tests, 12 api test files / 44 tests — all passing
+- Both packages typecheck; production build succeeds
+- A `contrast.test.ts` fixture pins the tokens to WCAG AA and was confirmed to
+  fail when a failing grey is reintroduced
+- Rendered output was checked against the **built stylesheet** (computed
+  values), not by eye
+
+**Not verified:** the signed-in app was never driven end to end. Local auth
+requires Firebase emulators, which were not running. The board, composer,
+sheet and shell were each rendered against the compiled CSS in isolation, so
+layout and token resolution are confirmed but a real session is not. Run it
+before merging.
+
+### Known gaps
+
+- `quickAdd.ts` is now unreferenced outside its own test. Left in place; it is
+  a separate cleanup.
+- `Home.tsx` still carries a few very long single-line JSX blocks. Reformatting
+  was attempted and abandoned because it changes strings that source-contract
+  tests assert; it needs doing deliberately, with the tests updated in the same
+  commit.
+- DM Serif Display remains on the sign-in and admin screens.
