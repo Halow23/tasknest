@@ -14,11 +14,10 @@ describe("task templates", () => {
     expect(schema).toContain("export type TemplateDoc = {");
   });
 
-  it("applies templates by copying priority, recurrence, labels, and subtasks", async () => {
+  it("applies templates by copying priority, labels, and subtasks", async () => {
     const source = await readFile(new URL("../../../api/src/routers/tasknest.ts", import.meta.url), "utf8");
 
     expect(source).toContain("priority: template.priority,");
-    expect(source).toContain("recurrenceRule: template.recurrenceRule,");
     expect(source).toContain("const validLabels = allLabels.filter((label) => template.labelIds.includes(label.id));");
     expect(source).toContain("for (const title of template.subtaskTitles ?? []) {");
   });

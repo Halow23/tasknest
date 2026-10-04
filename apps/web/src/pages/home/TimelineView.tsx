@@ -17,16 +17,13 @@ export function TimelineView({ tasks, onOpenTask }: { tasks: TimelineTask[]; onO
         {bars.map(bar => <button key={bar.taskId} type="button" role="listitem" onClick={() => onOpenTask(bar.taskId)} className="group mb-3 block w-full text-left" aria-label={`${bar.title}, ${formatDate(bar.isDone ? null : null)}`}>
           <div className="mb-1 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-[11px] font-extrabold text-[#27445D]">{bar.title}</span>
-            {bar.isBlocked && <Lock className="h-3 w-3 shrink-0 text-[#A36A00]" aria-label="Blocked" />}
             <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold capitalize ring-1 ring-inset", priorityStyle[bar.priority])}>{bar.priority}</span>
           </div>
           <div className="relative h-5 rounded-full bg-[#F2F7FA]">
             <div className={cn("absolute top-0 h-5 rounded-full transition-opacity group-hover:opacity-90",
-              bar.isDone ? "bg-[#6EBB92]" : bar.isOverdue ? "bg-[#FF6B5E]" : bar.isBlocked ? "bg-[#E3A55B]" : "bg-[#38A9F2]")}
+              bar.isDone ? "bg-[#6EBB92]" : bar.isOverdue ? "bg-[#FF6B5E]" : "bg-[#38A9F2]")}
               style={{ left: `${bar.leftPercent}%`, width: `${bar.widthPercent}%` }}>
-              <span className="absolute inset-0 flex items-center justify-center gap-1 overflow-hidden px-1 text-[9px] font-extrabold text-white">
-                {bar.isBlocked && <Lock className="h-2.5 w-2.5" />}
-              </span>
+              <span className="absolute inset-0 flex items-center justify-center gap-1 overflow-hidden px-1 text-[9px] font-extrabold text-white" />
             </div>
           </div>
         </button>)}

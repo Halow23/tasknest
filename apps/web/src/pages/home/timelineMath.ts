@@ -1,6 +1,6 @@
 import type { TaskSummary } from "./types";
 
-export type TimelineTask = TaskSummary & { createdAt?: Date | null; completedAt?: Date | null; blockedByCount?: number };
+export type TimelineTask = TaskSummary & { createdAt?: Date | null; completedAt?: Date | null };
 
 export type TimelineBar = {
   taskId: string;
@@ -11,7 +11,6 @@ export type TimelineBar = {
   widthPercent: number;
   isDone: boolean;
   isOverdue: boolean;
-  isBlocked: boolean;
 };
 
 const DAY_MS = 86_400_000;
@@ -48,7 +47,6 @@ export function timelineBarPercents(tasks: TimelineTask[], now = new Date()): { 
         widthPercent,
         isDone: task.status === "done",
         isOverdue: hasDue && new Date(task.dueAt!).getTime() < now.getTime() && task.status !== "done",
-        isBlocked: (task.blockedByCount ?? 0) > 0,
       } satisfies TimelineBar;
     });
 

@@ -18,7 +18,7 @@ describe("csv export", () => {
 
     expect(home).toContain('aria-label="Export tasks as CSV"');
     expect(home).toContain("tasknest-${data.projectName.toLowerCase().replace(/[^a-z0-9]+/g, \"-\")}");
-    expect(home).toContain('"ID", "Title", "Status", "Priority", "Recurrence", "Due", "Completed", "Created", "Assignees", "Labels"');
+    expect(home).toContain('"ID", "Title", "Status", "Priority", "Due", "Completed", "Created", "Assignees", "Labels"');
     expect(csv).toContain('export function csvCell(');
     expect(csv).toContain("double-quote doubling");
     expect(csv).toContain("export function downloadCsv(");

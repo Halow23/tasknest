@@ -163,26 +163,14 @@ beforeEach(() => {
 });
 
 describe("task.list", () => {
-  it("joins open-dependency counts using one batched dependency lookup", async () => {
-    listTasks.mockResolvedValue([task("t1", { dependencies: ["t9", "t8"] }), task("t2")]);
-    getOpenDependencyIds.mockResolvedValue(new Set(["t9"]));
+  it("returns the project alongside its tasks", async () => {
+    listTasks.mockResolvedValue([task("t1"), task("t2")]);
 
     const caller = tasknestRouter.createCaller(createContext());
     const result = await caller.task.list({ projectId: "p1", workspaceId: "ws1" });
 
-    expect(getOpenDependencyIds).toHaveBeenCalledWith("ws1", ["t9", "t8"]);
-    expect(result.tasks.find(t => t.id === "t1")?.blockedByCount).toBe(1);
-    expect(result.tasks.find(t => t.id === "t2")?.blockedByCount).toBe(0);
+    expect(result.tasks).toHaveLength(2);
     expect(result.project.id).toBe("p1");
-  });
-
-  it("skips the dependency lookup entirely when no task has dependencies", async () => {
-    listTasks.mockResolvedValue([task("t1"), task("t2")]);
-
-    const caller = tasknestRouter.createCaller(createContext());
-    await caller.task.list({ projectId: "p1", workspaceId: "ws1" });
-
-    expect(getOpenDependencyIds).not.toHaveBeenCalled();
   });
 
   it("rejects the list when the project does not exist", async () => {
@@ -192,51 +180,6 @@ describe("task.list", () => {
     await expect(caller.task.list({ projectId: "missing", workspaceId: "ws1" })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-  });
-});
-
-describe("dependency.create", () => {
-  it("rejects a task depending on itself", async () => {
-    const caller = tasknestRouter.createCaller(createContext());
-    await expect(
-      caller.dependency.create({ taskId: "t1", workspaceId: "ws1", dependsOnTaskId: "t1" }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(addDependency).not.toHaveBeenCalled();
-  });
-
-  it("rejects dependencies across different projects", async () => {
-    getTaskById.mockImplementation(async (_ws: string, id: string) =>
-      id === "tA" ? task("tA", { projectId: "p1" }) : task("tB", { projectId: "p2" }),
-    );
-
-    const caller = tasknestRouter.createCaller(createContext());
-    await expect(
-      caller.dependency.create({ taskId: "tA", workspaceId: "ws1", dependsOnTaskId: "tB" }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Dependencies must stay within the same project." });
-    expect(addDependency).not.toHaveBeenCalled();
-  });
-
-  it("rejects dependencies that would create a cycle", async () => {
-    // A depends on B; adding B -> A closes the loop.
-    getTaskById.mockImplementation(async (_ws: string, id: string) =>
-      id === "tA" ? task("tA", { dependencies: ["tB"] }) : task("tB", { dependencies: [] }),
-    );
-
-    const caller = tasknestRouter.createCaller(createContext());
-    await expect(
-      caller.dependency.create({ taskId: "tB", workspaceId: "ws1", dependsOnTaskId: "tA" }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST", message: "This dependency would create a circular chain." });
-    expect(addDependency).not.toHaveBeenCalled();
-  });
-
-  it("creates a valid dependency between two open tasks", async () => {
-    getTaskById.mockImplementation(async (_ws: string, id: string) => task(id));
-
-    const caller = tasknestRouter.createCaller(createContext());
-    const result = await caller.dependency.create({ taskId: "tA", workspaceId: "ws1", dependsOnTaskId: "tB" });
-
-    expect(result.dependencyId).toBe("tB");
-    expect(addDependency).toHaveBeenCalledWith("ws1", "tA", "tB");
   });
 });
 

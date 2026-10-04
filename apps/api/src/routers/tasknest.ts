@@ -62,8 +62,6 @@ import {
   deleteSubtask,
   deleteTimeEntry,
   getLabels,
-  getOpenDependencies,
-  getOpenDependencyIds,
   getTaskById,
   getTaskDetail,
   listDeletedTasks,
@@ -87,7 +85,6 @@ import type {
   ProjectFieldType,
   TaskDoc,
   TaskPriority,
-  TaskRecurrence,
   TaskStatus,
   TemplateDoc,
   UserDoc,
@@ -163,50 +160,6 @@ function resolveLabelMap(
     }
   }
   return { ids, names, colors };
-}
-
-function advanceDueDate(base: Date | null, rule: TaskRecurrence, completedAt: Date): Date | null {
-  if (rule === "none") return null;
-  const from = base ?? completedAt;
-  const next = new Date(from);
-  if (rule === "daily") next.setDate(next.getDate() + 1);
-  if (rule === "weekly") next.setDate(next.getDate() + 7);
-  if (rule === "monthly") next.setMonth(next.getMonth() + 1);
-  return next;
-}
-
-async function spawnRecurringTask(task: TaskDoc, wsId: string, completedAt: Date): Promise<string | null> {
-  if (task.recurrenceRule === "none") return null;
-  const nextDue = advanceDueDate(task.dueAt, task.recurrenceRule, completedAt);
-  const nextTask = await createTask({
-    wsId,
-    projectId: task.projectId,
-    title: task.title,
-    description: task.description ?? undefined,
-    priority: task.priority,
-    recurrenceRule: task.recurrenceRule,
-    dueAt: nextDue,
-    createdById: task.createdById,
-    assigneeIds: task.assigneeIds,
-    assigneeNames: task.assigneeNames,
-    labelIds: task.labelIds,
-    labelNames: task.labelNames,
-    labelColors: task.labelColors,
-    fieldValues: task.fieldValues,
-  });
-  // Copy subtasks (uncompleted)
-  for (const s of task.subtasks) {
-    await addSubtask(wsId, nextTask.id, s.title);
-  }
-  await logActivityAndSideEffects({
-    wsId,
-    projectId: task.projectId,
-    taskId: nextTask.id,
-    actorId: task.createdById,
-    type: "task_created",
-    metadata: { action: "recurrence_spawned", sourceTaskId: task.id, recurrenceRule: task.recurrenceRule },
-  });
-  return nextTask.id;
 }
 
 export function extractMentionedUserIds(
@@ -548,21 +501,9 @@ export const tasknestRouter = router({
           labelId: input.labelId ?? undefined,
           dueBucket: input.dueBucket,
         });
-        // Open-dependency counts per task, resolved with chunked batched reads
-        // (one `in` query per 30 unique dependency ids instead of 2 reads per task).
-        const blockedByCount = new Map<string, number>();
-        const depIds = Array.from(new Set(tasks.flatMap((t) => t.dependencies)));
-        if (depIds.length) {
-          const openIds = await getOpenDependencyIds(input.workspaceId, depIds);
-          for (const t of tasks) {
-            const count = t.dependencies.filter((id) => openIds.has(id)).length;
-            if (count) blockedByCount.set(t.id, count);
-          }
-        }
-        const tasksWithCounts = tasks.map((t) => ({ ...t, blockedByCount: blockedByCount.get(t.id) ?? 0 }));
+        const tasksWithCounts = tasks;
         const memberRows = ws.members.map((m) => ({ id: m.userId, name: m.name, email: m.email }));
-        const assignees = tasksWithCounts.flatMap((task) =>
-          task.assigneeIds.map((uid) => {
+        const assignees = tasksWithCounts.flatMap((task) =>          task.assigneeIds.map((uid) => {
             const member = ws.members.find((m) => m.userId === uid);
             return { taskId: task.id, id: uid, name: member?.name ?? null, email: member?.email ?? null };
           }),
@@ -598,7 +539,6 @@ export const tasknestRouter = router({
             title: t.title,
             status: t.status,
             priority: t.priority,
-            recurrenceRule: t.recurrenceRule,
             dueAt: t.dueAt,
             completedAt: t.completedAt,
             createdAt: t.createdAt,
@@ -613,7 +553,6 @@ export const tasknestRouter = router({
       .query(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
         const detail = await getTaskDetail(input.workspaceId, input.taskId);
-        const openDeps = await getOpenDependencies(input.workspaceId, input.taskId);
         const proj = await getProjectById(input.workspaceId, detail.task.projectId);
         const fieldsById = new Map((proj?.fields ?? []).map((f) => [f.id, f]));
         return {
@@ -626,7 +565,6 @@ export const tasknestRouter = router({
           activity: detail.activity,
           fieldValues: Object.entries(detail.task.fieldValues).map(([fieldId, value]) => ({ fieldId, value, name: fieldsById.get(fieldId)?.name ?? "Field", type: fieldsById.get(fieldId)?.type ?? "text" })),
           labels: Object.entries(detail.task.labelNames).map(([id, name]) => ({ id, name, color: detail.task.labelColors[id] ?? "#38A9F2" })),
-          openDependencies: openDeps,
           timeEntries: detail.timeEntries,
         };
       }),
@@ -640,7 +578,6 @@ export const tasknestRouter = router({
         priority: taskPrioritySchema.default("medium"),
         status: taskStatusSchema.optional(),
         dueAt: z.date().nullable().optional(),
-        recurrenceRule: taskRecurrenceSchema.optional(),
         assigneeIds: z.array(z.string().min(1)).max(20).optional(),
         fieldValues: z.array(fieldValueInputSchema).max(30).optional(),
         labelIds: z.array(z.string().min(1)).max(20).optional(),
@@ -666,7 +603,6 @@ export const tasknestRouter = router({
           description: input.description,
           priority: input.priority,
           status: input.status,
-          recurrenceRule: input.recurrenceRule,
           dueAt: input.dueAt,
           createdById: ctx.user.id,
           assigneeIds: input.assigneeIds,
@@ -703,7 +639,6 @@ export const tasknestRouter = router({
         description: z.string().trim().max(8000).nullable().optional(),
         priority: taskPrioritySchema.optional(),
         dueAt: z.date().nullable().optional(),
-        recurrenceRule: taskRecurrenceSchema.optional(),
         assigneeIds: z.array(z.string().min(1)).max(20).optional(),
         fieldValues: z.array(fieldValueInputSchema).max(30).optional(),
         labelIds: z.array(z.string().min(1)).max(20).optional(),
@@ -718,7 +653,6 @@ export const tasknestRouter = router({
         if (input.description !== undefined) updates.description = input.description;
         if (input.priority !== undefined) updates.priority = input.priority;
         if (input.dueAt !== undefined) updates.dueAt = input.dueAt;
-        if (input.recurrenceRule !== undefined) updates.recurrenceRule = input.recurrenceRule;
 
         if (input.assigneeIds !== undefined) {
           updates.assigneeIds = input.assigneeIds;
@@ -777,32 +711,21 @@ export const tasknestRouter = router({
       .input(z.object({ taskId: z.string().min(1), workspaceId: z.string().min(1), status: taskStatusSchema, sortOrder: z.number().int().optional() }))
       .mutation(async ({ ctx, input }) => {
         const task = await assertTaskMember(input.taskId, ctx.user.id, input.workspaceId);
-        if (input.status === "done") {
-          const openDeps = await getOpenDependencies(input.workspaceId, input.taskId);
-          if (openDeps.length > 0) {
-            const names = openDeps.map((d) => `"${d.title}"`).join(", ");
-            throw new TRPCError({ code: "BAD_REQUEST", message: `Blocked by open dependencies: ${names}. Complete them first.` });
-          }
-        }
         const completedAt = input.status === "done" ? new Date() : null;
         await updateTask(input.workspaceId, input.taskId, {
           status: input.status,
           sortOrder: input.sortOrder ?? Math.floor(Date.now() / 1000),
           completedAt,
         });
-        let spawnedTaskId: string | null = null;
-        if (input.status === "done") {
-          spawnedTaskId = await spawnRecurringTask(task, input.workspaceId, completedAt!);
-        }
         await logActivityAndSideEffects({
           wsId: input.workspaceId,
           projectId: task.projectId,
           taskId: input.taskId,
           actorId: ctx.user.id,
           type: input.status === "done" ? "task_completed" : "task_moved",
-          metadata: { status: input.status, ...(spawnedTaskId ? { spawnedTaskId } : {}) },
+          metadata: { status: input.status },
         });
-        return { taskId: input.taskId, projectId: task.projectId, status: input.status, spawnedTaskId };
+        return { taskId: input.taskId, projectId: task.projectId, status: input.status };
       }),
 
     reorder: protectedProcedure
@@ -878,7 +801,6 @@ export const tasknestRouter = router({
           title: template.title,
           description: template.description ?? undefined,
           priority: template.priority,
-          recurrenceRule: template.recurrenceRule,
           dueAt: input.dueAt ?? null,
           createdById: ctx.user.id,
           labelIds: labelMap.ids,
@@ -890,55 +812,6 @@ export const tasknestRouter = router({
         }
         await logActivityAndSideEffects({ wsId: input.workspaceId, projectId: input.projectId, taskId: task.id, actorId: ctx.user.id, type: "task_created", metadata: { title: template.title, action: "applied_template", templateName: template.name } });
         return { taskId: task.id, projectId: input.projectId };
-      }),
-  }),
-
-  dependency: router({
-    list: protectedProcedure
-      .input(z.object({ taskId: z.string().min(1), workspaceId: z.string().min(1) }))
-      .query(async ({ ctx, input }) => {
-        await assertWorkspaceMember(input.workspaceId, ctx.user.id);
-        return getOpenDependencies(input.workspaceId, input.taskId);
-      }),
-
-    create: protectedProcedure
-      .input(z.object({ taskId: z.string().min(1), workspaceId: z.string().min(1), dependsOnTaskId: z.string().min(1) }))
-      .mutation(async ({ ctx, input }) => {
-        if (input.taskId === input.dependsOnTaskId) throw new TRPCError({ code: "BAD_REQUEST", message: "A task cannot depend on itself." });
-        await assertWorkspaceMember(input.workspaceId, ctx.user.id);
-        const { addDependency, getTaskById } = await import("../firestore/task");
-        const [task, prerequisite] = await Promise.all([
-          getTaskById(input.workspaceId, input.taskId),
-          getTaskById(input.workspaceId, input.dependsOnTaskId),
-        ]);
-        if (!task || !prerequisite) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
-        if (task.projectId !== prerequisite.projectId) throw new TRPCError({ code: "BAD_REQUEST", message: "Dependencies must stay within the same project." });
-        // Cycle check: walk the prerequisite's own dependency chain; if it ever
-        // reaches this task, linking would create a circular chain.
-        const seen = new Set<string>();
-        let frontier = [input.dependsOnTaskId];
-        while (frontier.length) {
-          const next: string[] = [];
-          for (const id of frontier) {
-            if (id === input.taskId) throw new TRPCError({ code: "BAD_REQUEST", message: "This dependency would create a circular chain." });
-            if (seen.has(id)) continue;
-            seen.add(id);
-            const node = await getTaskById(input.workspaceId, id);
-            if (node) next.push(...node.dependencies);
-          }
-          frontier = next;
-        }
-        await addDependency(input.workspaceId, input.taskId, input.dependsOnTaskId);
-        return { dependencyId: input.dependsOnTaskId };
-      }),
-
-    delete: protectedProcedure
-      .input(z.object({ taskId: z.string().min(1), workspaceId: z.string().min(1), dependsOnTaskId: z.string().min(1) }))
-      .mutation(async ({ ctx, input }) => {
-        await assertWorkspaceMember(input.workspaceId, ctx.user.id);
-        const { removeDependency } = await import("../firestore/task");
-        await removeDependency(input.workspaceId, input.taskId, input.dependsOnTaskId);
-        return { deletedDependencyId: input.dependsOnTaskId };
       }),
   }),
 
@@ -958,7 +831,6 @@ export const tasknestRouter = router({
         title: z.string().trim().min(1).max(240),
         description: z.string().trim().max(8000).optional(),
         priority: taskPrioritySchema.default("medium"),
-        recurrenceRule: taskRecurrenceSchema.default("none"),
         subtaskTitles: z.array(z.string().trim().min(1).max(240)).max(30).optional(),
         labelIds: z.array(z.string().min(1)).max(20).optional(),
       }))
@@ -975,7 +847,9 @@ export const tasknestRouter = router({
           title: input.title,
           description: input.description ?? null,
           priority: input.priority,
-          recurrenceRule: input.recurrenceRule,
+          // Legacy field kept on the document shape so existing templates and
+          // readers stay valid; recurrence is no longer a product feature.
+          recurrenceRule: "none",
           subtaskTitles: input.subtaskTitles ?? [],
           labelIds: input.labelIds ?? [],
           createdById: ctx.user.id,

@@ -19,13 +19,11 @@ describe("quick-add parser", () => {
     expect(parseQuickAdd("Demo saturday", now).dueDateKey).toBe("2026-08-29");
   });
 
-  it("parses priority tokens and recurrence phrases", () => {
+  it("parses priority tokens", () => {
     const parsed = parseQuickAdd("Design review !high every week", now);
     expect(parsed.priority).toBe("high");
-    expect(parsed.recurrence).toBe("weekly");
-    expect(parsed.title).toBe("Design review");
+    expect(parsed.title).toBe("Design review every week");
     expect(parseQuickAdd("Fix bug p1", now).priority).toBe("high");
-    expect(parseQuickAdd("Water plants every day", now).recurrence).toBe("daily");
   });
 
   it("strips time tokens and treats leftovers as the title", () => {
@@ -39,6 +37,5 @@ describe("quick-add parser", () => {
     expect(parsed.title).toBe("Just a plain task");
     expect(parsed.dueDateKey).toBeNull();
     expect(parsed.priority).toBeNull();
-    expect(parsed.recurrence).toBe("none");
   });
 });

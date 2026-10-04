@@ -4,7 +4,6 @@ export type ParsedQuickAdd = {
   title: string;
   dueDateKey: string | null;
   priority: Priority | null;
-  recurrence: "none" | "daily" | "weekly" | "monthly";
 };
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -16,12 +15,12 @@ export function calendarKeyFor(date: Date): string {
 /**
  * Parses quick-add input: a due date phrase (today/tomorrow/next week/
  * weekday/in N days), an optional time (5pm / 17:00), a priority token
- * (!high/!medium/!low or p1/p2/p3), a recurrence phrase (every day/week/
- * month), and the remaining words become the title. Time is currently
- * folded into the date (time-of-day scheduling is a future enhancement).
+ * (!high/!medium/!low or p1/p2/p3), and the remaining words become the title.
+ * Time is currently folded into the date (time-of-day scheduling is a future
+ * enhancement).
  */
 export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
-  const result: ParsedQuickAdd = { title: "", dueDateKey: null, priority: null, recurrence: "none" };
+  const result: ParsedQuickAdd = { title: "", dueDateKey: null, priority: null };
   let text = input.trim();
   if (!text) return result;
 
@@ -33,11 +32,6 @@ export function parseQuickAdd(input: string, now = new Date()): ParsedQuickAdd {
   for (const [pattern, priority] of priorityPatterns) {
     if (pattern.test(text)) { result.priority = priority; text = text.replace(pattern, " "); break; }
   }
-
-  // recurrence
-  if (/\bevery\s+day\b/i.test(text)) { result.recurrence = "daily"; text = text.replace(/\bevery\s+day\b/i, " "); }
-  else if (/\bevery\s+week\b/i.test(text)) { result.recurrence = "weekly"; text = text.replace(/\bevery\s+week\b/i, " "); }
-  else if (/\bevery\s+month\b/i.test(text)) { result.recurrence = "monthly"; text = text.replace(/\bevery\s+month\b/i, " "); }
 
   // date phrases
   const setDate = (date: Date) => { result.dueDateKey = calendarKeyFor(date); };

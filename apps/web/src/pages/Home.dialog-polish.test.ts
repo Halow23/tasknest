@@ -18,14 +18,6 @@ describe("dialog polish round", () => {
     expect(home).toContain("<DueDatePicker id=\"task-due\" value={newTaskDueDate} onChange={setNewTaskDueDate} />");
     expect(home).toContain("priority: newTaskPriority");
     expect(home).toContain("dueAt: newTaskDueDate ? new Date(`${newTaskDueDate}T12:00:00`) : null");
-    expect(home).toContain('setNewTaskPriority("medium"); setNewTaskDueDate("");');
-  });
-
-  it("uses the shared shadcn Select for the prerequisite picker", async () => {
-    const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
-
-    expect(drawer).toContain('aria-label="Choose a prerequisite task"');
-    expect(drawer).toContain('<SelectTrigger className="h-8 min-w-0 flex-1');
-    expect(drawer).not.toContain("<select");
+    expect(home).toContain('setNewTaskPriority("medium");');
   });
 });
