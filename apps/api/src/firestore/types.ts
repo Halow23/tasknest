@@ -135,6 +135,12 @@ export type ProjectDoc = {
   deletedAt: Date | null;
   createdById: string;
   fields: ProjectField[];    // embedded custom field definitions
+  /**
+   * Optional per-column work-in-progress limits, keyed by status. Rendered on
+   * the board as "count/limit"; a column over its limit is flagged, not
+   * blocked — the limit is advisory.
+   */
+  wipLimits?: Partial<Record<TaskStatus, number>>;
   createdAt: Date;
   updatedAt: Date;
 };

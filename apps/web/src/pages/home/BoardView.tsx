@@ -1,10 +1,16 @@
-import { Plus } from 'lucide-react';
+import { MoreHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceLabel } from '@/components/LabelPicker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { TaskCard } from './dialogs';
-import { columns, type Member, type TaskSummary } from './types';
+import { columns, type Member, type Status, type TaskSummary } from './types';
 
-export function BoardView({ tasks, assigneeMap, labelMap, focusedTaskId, moveTask, reorderTask, projectId, workspaceId, onFocusTask, onOpenTask, onNewTask }: {
+/** A column is over its limit when it holds more cards than the limit allows. */
+function isOverLimit(count: number, limit: number | undefined) {
+  return limit !== undefined && count > limit;
+}
+
+export function BoardView({ tasks, assigneeMap, labelMap, focusedTaskId, moveTask, reorderTask, projectId, workspaceId, wipLimits, onSetWipLimit, onFocusTask, onOpenTask, onNewTask }: {
   tasks: TaskSummary[];
   assigneeMap: Map<string, Member[]>;
   labelMap: Map<string, WorkspaceLabel[]>;
@@ -13,6 +19,8 @@ export function BoardView({ tasks, assigneeMap, labelMap, focusedTaskId, moveTas
   reorderTask: { mutate: (input: { projectId: string; workspaceId: string; status: TaskSummary['status']; orderedTaskIds: string[] }) => void };
   projectId: string;
   workspaceId: string;
+  wipLimits?: Partial<Record<Status, number>>;
+  onSetWipLimit: (status: Status, limit: number | null) => void;
   onFocusTask: (taskId: string) => void;
   onOpenTask: (taskId: string) => void;
   onNewTask: (status?: TaskSummary['status']) => void;
@@ -22,6 +30,8 @@ export function BoardView({ tasks, assigneeMap, labelMap, focusedTaskId, moveTas
       <div className="grid h-full w-max grid-flow-col auto-cols-[273px] gap-2">
         {columns.map(column => {
           const lane = tasks.filter(task => task.status === column.id);
+          const limit = wipLimits?.[column.id];
+          const over = isOverLimit(lane.length, limit);
           return (
             <section
               key={column.id}
@@ -32,9 +42,42 @@ export function BoardView({ tasks, assigneeMap, labelMap, focusedTaskId, moveTas
               <header className="flex h-5 shrink-0 items-center justify-between px-3">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <h2 className="truncate text-tn-body font-medium text-foreground">{column.title}</h2>
-                  <span className="text-tn-body font-medium text-tn-text-secondary">{lane.length}</span>
+                  <span
+                    className={cn("shrink-0 text-tn-body font-medium", over ? "text-tn-danger" : "text-tn-text-secondary")}
+                    title={over ? `${lane.length} cards — over the limit of ${limit}` : limit !== undefined ? `Limit ${limit}` : undefined}
+                  >
+                    {lane.length}{limit !== undefined && `/${limit}`}
+                  </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Set WIP limit for ${column.title}`}
+                        className="grid size-5 place-items-center rounded-md text-tn-text-secondary transition-colors hover:bg-black/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tn-accent"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-56 p-3">
+                      <label htmlFor={`wip-${column.id}`} className="text-tn-body-2 font-medium text-foreground">WIP limit</label>
+                      <p className="mt-0.5 text-tn-caption-1 text-tn-text-secondary">Flag the column once it holds more than this. Work is never blocked.</p>
+                      <input
+                        id={`wip-${column.id}`}
+                        type="number"
+                        min={1}
+                        max={999}
+                        defaultValue={limit ?? ""}
+                        placeholder="No limit"
+                        onChange={event => {
+                          const raw = event.target.value.trim();
+                          onSetWipLimit(column.id, raw === "" ? null : Math.max(1, Math.min(999, Number(raw))));
+                        }}
+                        className="mt-2 h-8 w-full rounded-tn-control border border-border bg-background px-2 text-tn-body-2 outline-none focus-visible:ring-2 focus-visible:ring-tn-accent"
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <button
                     type="button"
                     onClick={() => onNewTask(column.id)}

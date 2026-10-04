@@ -406,6 +406,18 @@ export const tasknestRouter = router({
         description: z.string().trim().max(2000).nullable().optional(),
         color: z.string().regex(/^#[A-Fa-f0-9]{6}$/).optional(),
         imageUrl: z.string().url().max(500).nullable().optional(),
+        /**
+         * Per-column WIP limits. Pass only the columns you are changing; pass
+         * `null` for one to clear it. Limits are advisory: a column over its
+         * limit is flagged on the board but work is never blocked.
+         */
+        wipLimits: z.object({
+          backlog: z.number().int().min(1).max(999).nullable().optional(),
+          todo: z.number().int().min(1).max(999).nullable().optional(),
+          progress: z.number().int().min(1).max(999).nullable().optional(),
+          review: z.number().int().min(1).max(999).nullable().optional(),
+          done: z.number().int().min(1).max(999).nullable().optional(),
+        }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await assertWorkspaceMember(input.workspaceId, ctx.user.id);
@@ -416,6 +428,15 @@ export const tasknestRouter = router({
         if (input.description !== undefined) updates.description = input.description;
         if (input.color !== undefined) updates.color = input.color;
         if (input.imageUrl !== undefined) updates.imageUrl = input.imageUrl;
+        if (input.wipLimits !== undefined) {
+          const existing = await getProjectById(input.workspaceId, input.projectId);
+          const merged: Record<string, number> = { ...(existing?.wipLimits ?? {}) };
+          for (const [status, limit] of Object.entries(input.wipLimits)) {
+            if (limit === null) delete merged[status];
+            else merged[status] = limit;
+          }
+          updates.wipLimits = merged;
+        }
         await ref.update(updates);
         return getProjectById(input.workspaceId, input.projectId);
       }),
