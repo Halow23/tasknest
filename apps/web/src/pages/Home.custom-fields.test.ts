@@ -27,11 +27,16 @@ describe('custom fields integration', () => {
 
   it('replaces native select and date inputs with shadcn Select and Calendar components', async () => {
     const home = await readFile(new URL('./Home.tsx', import.meta.url), 'utf8');
+    const composer = await readFile(new URL('./home/TaskComposer.tsx', import.meta.url), 'utf8');
     const drawer = await readFile(new URL('./home/TaskDrawer.tsx', import.meta.url), 'utf8');
 
     expect(drawer).toContain('<SelectTrigger id="edit-priority"');
     expect(drawer).toContain('<DueDatePicker id="edit-due" value={dueDate} onChange={setDueDate} />');
-    expect(home).toContain('<SelectTrigger id="task-assignee"');
+    // The composer presents assignee as a collapsed popover picker rather than a
+    // labelled select, matching the reference. Still not a native <select>.
+    expect(composer).toContain('<DueDatePicker id="task-due" value={dueDate} onChange={onDueDateChange} />');
+    expect(composer).toContain('PopoverTrigger');
+    expect(composer).not.toContain('<select');
     expect(home).not.toContain('<select id="task-assignee"');
     expect(home).not.toContain('type="date"');
   });

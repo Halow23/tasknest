@@ -24,9 +24,12 @@ describe("task templates", () => {
 
   it("picks templates in the create dialog and saves them from the edit dialog", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    const composer = await readFile(new URL("./home/TaskComposer.tsx", import.meta.url), "utf8");
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
 
-    expect(home).toContain('id="task-template"');
+    // The template picker lives in the composer; Home owns the mutation.
+    expect(composer).toContain('id="task-template"');
+    expect(composer).toContain("onApplyTemplate");
     expect(home).toContain("applyTemplate.mutate({ projectId: activeProject.id, workspaceId: workspace.id, templateId: template.id })");
     expect(home).toContain("trpc.tasknest.template.list.useQuery");
     expect(drawer).toContain('id="save-template"');

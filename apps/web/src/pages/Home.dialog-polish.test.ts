@@ -13,9 +13,12 @@ describe("dialog polish round", () => {
 
   it("collects priority and due date when creating a task", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    const composer = await readFile(new URL("./home/TaskComposer.tsx", import.meta.url), "utf8");
 
-    expect(home).toContain('id="task-priority"');
-    expect(home).toContain("<DueDatePicker id=\"task-due\" value={newTaskDueDate} onChange={setNewTaskDueDate} />");
+    // Both properties are collapsed pickers in the composer.
+    expect(composer).toContain("<DueDatePicker id=\"task-due\" value={dueDate} onChange={onDueDateChange} />");
+    expect(composer).toContain("onPriorityChange");
+    expect(composer).toContain("priorityStyle[value]");
     expect(home).toContain("priority: newTaskPriority");
     expect(home).toContain("dueAt: newTaskDueDate ? new Date(`${newTaskDueDate}T12:00:00`) : null");
     expect(home).toContain('setNewTaskPriority("medium");');

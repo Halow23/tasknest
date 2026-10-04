@@ -24,11 +24,14 @@ describe("labels/tags integration", () => {
 
   it("renders label chips on board cards and pickers in both task dialogs", async () => {
     const home = await readFile(new URL("./Home.tsx", import.meta.url), "utf8");
+    const composer = await readFile(new URL("./home/TaskComposer.tsx", import.meta.url), "utf8");
     const board = await readFile(new URL("./home/BoardView.tsx", import.meta.url), "utf8");
     const drawer = await readFile(new URL("./home/TaskDrawer.tsx", import.meta.url), "utf8");
     const picker = await readFile(new URL("../components/LabelPicker.tsx", import.meta.url), "utf8");
 
-    expect(home).toContain("<LabelPicker workspaceId={workspace.id}");
+    // The create composer owns the picker; Home passes the selection through.
+    expect(composer).toContain("<LabelPicker workspaceId={workspaceId}");
+    expect(composer).toContain("onLabelIdsChange");
     expect(home).toContain("labelIds: newTaskLabelIds");
     expect(board).toContain("labelMap");
     expect(drawer).toContain('<LabelPicker workspaceId={task.project?.workspaceId ?? ""}');
