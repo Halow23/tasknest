@@ -30,6 +30,50 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /*
+   * Board redesign tokens (BoardUI reference).
+   * Readability: --tn-text-secondary is the single replacement for the old
+   * #718491–#9BAAB3 grey family, which measured 2.4:1–3.9:1 and failed WCAG AA.
+   */
+  --color-tn-text-secondary: var(--tn-text-secondary);
+  --color-tn-text-tertiary: var(--tn-text-tertiary);
+  --color-tn-surface-column: var(--tn-surface-column);
+  --color-tn-accent: var(--tn-accent);
+  --color-tn-accent-strong: var(--tn-accent-strong);
+  --color-tn-accent-soft: var(--tn-accent-soft);
+  --color-tn-danger: var(--tn-danger);
+  --color-tn-danger-soft: var(--tn-danger-soft);
+  --color-tn-warn: var(--tn-warn);
+  --color-tn-warn-soft: var(--tn-warn-soft);
+  --color-tn-ok: var(--tn-ok);
+
+  /* Type scale — 5 working steps, each at 4 weights */
+  --text-tn-title-2: 1.25rem;
+  --text-tn-title-2--line-height: 1.625rem;
+  --text-tn-body: 0.875rem;
+  --text-tn-body--line-height: 1.25rem;
+  --text-tn-body-2: 0.8125rem;
+  --text-tn-body-2--line-height: 1.125rem;
+  --text-tn-caption-1: 0.75rem;
+  --text-tn-caption-1--line-height: 1rem;
+  --text-tn-caption-1--letter-spacing: 0.15px;
+  --text-tn-caption-2: 0.6875rem;
+  --text-tn-caption-2--line-height: 0.9375rem;
+  --text-tn-caption-2--letter-spacing: 0.2px;
+
+  /* Radius scale */
+  --radius-tn-chip: 6px;
+  --radius-tn-control: 10px;
+  --radius-tn-card: 12px;
+  --radius-tn-column: 20px;
+  --radius-tn-panel: 24px;
+
+  /* Shadow scale — near-invisible; separation comes from surface color */
+  --shadow-tn-card: 0 1px 1px 0 #0000000d;
+  --shadow-tn-dropdown: 0 1px 1px 0 #0000000a, 0 4px 4px 0 #00000005;
+  --shadow-tn-panel: 0 1px 0 0 #00000005, 0 1px 12px 0 #0000000f,
+    0 0 1px 0 #00000052;
 }
 
 :root {
@@ -53,6 +97,22 @@
   --border: oklch(0.92 0.011 220);
   --input: oklch(0.92 0.011 220);
   --ring: oklch(0.67 0.13 230);
+
+  /* ── Board redesign tokens (light) ──────────────────────────────────────
+   * Contrast ratios below are measured WCAG 2.1 against the stated surface.
+   * Do not lighten --tn-text-secondary past #6a7882 or it drops below AA.
+   */
+  --tn-text-secondary: #5f7482; /* 4.88:1 on #fff · 4.52:1 on #f2f7fa */
+  --tn-text-tertiary: #7a8b95; /* decorative only — icons/dividers, never body */
+  --tn-surface-column: #f7f7f7; /* board column surface */
+  --tn-accent: #2b7fff; /* gradient top */
+  --tn-accent-strong: #155dfc; /* gradient bottom · 5.25:1 on #fff */
+  --tn-accent-soft: #dbeafe; /* soft chip fill */
+  --tn-danger: #c3443a; /* 4.50:1 on #fff0ee (priority-high text) */
+  --tn-danger-soft: #fff0ee;
+  --tn-warn: #9e6700; /* 4.51:1 on #fff8e6 (priority-medium text) */
+  --tn-warn-soft: #fff8e6;
+  --tn-ok: #3d6300; /* done / success text */
 }
 
 /* Signal Desk dark: same structure, soft navy surfaces, brand accents preserved. */
@@ -77,6 +137,97 @@
   --border: oklch(0.24 0 0);
   --input: oklch(0.24 0 0);
   --ring: oklch(0.72 0.12 230);
+
+  /* ── Board redesign tokens (dark) ───────────────────────────────────────
+   * Accent hue is unchanged in dark mode; only surfaces and text invert.
+   * Status text uses the 300/400 ramp step, not the 700/800 used in light.
+   */
+  --tn-text-secondary: #a1a1a1; /* 5.63:1 on #171717 */
+  --tn-text-tertiary: #737373; /* decorative only */
+  --tn-surface-column: #171717; /* column surface (neutral-900) */
+  --tn-accent: #3392ff;
+  --tn-accent-strong: #2b7fff;
+  --tn-accent-soft: #1c398e;
+  --tn-danger: #ffccd3;
+  --tn-danger-soft: #4a0d1e;
+  --tn-warn: #f0b100;
+  --tn-warn-soft: #3a2d00;
+  --tn-ok: #d8f999;
+}
+
+/*
+ * Light readability layer (WCAG AA).
+ *
+ * The legacy palette carries a family of near-identical light greys used for
+ * secondary text. Measured against #fff they land at 1.8:1–3.9:1, which is why
+ * light mode reads as washed out. Each entry below is remapped to
+ * --tn-text-secondary (#5f7482, 5.19:1 on #fff, 4.81:1 on the #f2f7fa lane).
+ *
+ * Scope is deliberately `text-` only: #38A9F2 and #D44A3F are also used as
+ * fills, borders and rings, and those must stay vivid. Same mechanism as the
+ * dark remap layer below, so both themes stay symmetric.
+ */
+[class*="text-[#9BAAB3]"],
+[class*="text-[#91A3AE]"],
+[class*="text-[#90A1AB]"],
+[class*="text-[#8BA0AD]"],
+[class*="text-[#8B9EAA]"],
+[class*="text-[#8A9BA6]"],
+[class*="text-[#8498A5]"],
+[class*="text-[#8197A5]"],
+[class*="text-[#7F94A1]"],
+[class*="text-[#78909F]"],
+[class*="text-[#7B8F9C]"],
+[class*="text-[#718A9A]"],
+[class*="text-[#718491]"],
+[class*="text-[#69818F]"],
+[class*="text-[#6F8A9A]"],
+[class*="text-[#708490]"],
+[class*="text-[#7C8E9B]"],
+[class*="text-[#7C929F]"],
+[class*="text-[#8093A0]"],
+[class*="text-[#8AA0AF]"],
+[class*="text-[#8C9EA9]"],
+[class*="text-[#90A2AD]"] {
+  color: var(--tn-text-secondary);
+}
+
+/* Purely decorative glyphs — the only place the lighter tone is still allowed. */
+[class*="text-[#B7C5CE]"] {
+  color: var(--tn-text-tertiary);
+}
+
+/* Accent text on light surfaces (kept as fills/borders everywhere else). */
+[class*="text-[#38A9F2]"],
+[class*="text-[#4B92BB]"],
+[class*="text-[#2E85B5]"],
+[class*="text-[#247EAF]"] {
+  color: #297cb2; /* 4.55:1 on #fff */
+}
+
+/* Destructive / priority text. */
+[class*="text-[#D44A3F]"],
+[class*="text-[#C9554B]"],
+[class*="text-[#C2574E]"] {
+  color: var(--tn-danger);
+}
+
+/*
+ * Hover restores. The base rules above are attribute-substring matches, so an
+ * element carrying `text-[#7B8F9C] hover:text-[#4B92BB]` would otherwise get the
+ * flat secondary colour in both states and lose its hover affordance. These
+ * pseudo-class rules are more specific, so hover still wins.
+ */
+[class*="hover:text-[#4B92BB]"]:hover,
+[class*="hover:text-[#38A9F2]"]:hover,
+[class*="hover:text-[#247EAF]"]:hover,
+[class*="hover:text-[#2E85B5]"]:hover {
+  color: #297cb2;
+}
+
+[class*="hover:text-[#D44A3F]"]:hover,
+[class*="hover:text-[#C9554B]"]:hover {
+  color: var(--tn-danger);
 }
 
 /*
@@ -198,6 +349,7 @@
 .dark [class*="text-[#7C94A2]"],
 .dark [class*="text-[#7F94A1]"],
 .dark [class*="text-[#8093A0]"],
+.dark [class*="text-[#8AA0AF]"],
 .dark [class*="text-[#8197A5]"],
 .dark [class*="text-[#8296A4]"],
 .dark [class*="text-[#8297A5]"],
@@ -234,22 +386,17 @@
 .dark [class*="text-[#426046]"],
 .dark [class*="text-[#6EBB92]"],
 .dark [class*="text-[#69AFD1]"],
-.dark [class*="text-[#72A2BC]"],
-.dark [class*="text-[#4B92BB]"],
-.dark [class*="text-[#4D94BB]"],
-.dark [class*="text-[#4D9EC8]"],
-.dark [class*="text-[#38A9F2]"],
-.dark [class*="text-[#2E85B5]"],
-.dark [class*="text-[#2A7BA9]"],
-.dark [class*="text-[#2B789F]"],
-.dark [class*="text-[#2E789F]"],
-.dark [class*="text-[#247EAF]"],
-.dark [class*="text-[#31779F]"],
-.dark [class*="text-[#347EA7]"],
-.dark [class*="text-[#3B86B0]"],
-.dark [class*="text-[#1A5C82]"] { color: oklch(0.93 0 0); }
+.dark [class*="text-[#72A2BC]"] {
+  /* Secondary text. Previously oklch(0.93 0 0) — within 2% of the 0.95 primary,
+     which flattened the whole dark theme into one tone. 0.72 restores hierarchy
+     and still clears AA on the 0.13–0.20 dark surfaces. */
+  color: var(--tn-text-secondary);
+}
 
-/* Accent text gets a brightened identity instead of plain light gray. */
+.dark [class*="text-[#4B92BB]"],
+.dark [class*="text-[#4D94BB]"],
+.dark [class*="text-[#4D9EC8]"],
+.dark [class*="text-[#38A9F2]"],
 .dark [class*="text-[#2E85B5]"],
 .dark [class*="text-[#2A7BA9]"],
 .dark [class*="text-[#2B789F]"],
@@ -258,14 +405,10 @@
 .dark [class*="text-[#31779F]"],
 .dark [class*="text-[#347EA7]"],
 .dark [class*="text-[#3B86B0]"],
-.dark [class*="text-[#4B92BB]"],
-.dark [class*="text-[#4D94BB]"],
-.dark [class*="text-[#4D9EC8]"],
-.dark [class*="text-[#69AFD1]"],
-.dark [class*="text-[#6EBB92]"],
-.dark [class*="text-[#72A2BC]"],
-.dark [class*="text-[#38A9F2]"],
-.dark [class*="text-[#1A5C82]"] { color: oklch(0.80 0.1 232); }
+.dark [class*="text-[#1A5C82]"] {
+  /* Accent text keeps a blue identity, just brightened for dark surfaces. */
+  color: oklch(0.80 0.1 232);
+}
 
 .dark [class*="text-[#D44A3F]"],
 .dark [class*="text-[#C9554B]"],
@@ -330,7 +473,12 @@ html.dark { background: oklch(0 0 0); }
 }
 
 @layer components {
-  .section-label { @apply text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8EA0AB]; }
+  /*
+   * @apply inlines the declaration, so the hex never reaches the class attribute
+   * and the remap layers cannot see it — this is why section labels stayed
+   * unreadable in both themes. Use the token directly instead.
+   */
+  .section-label { @apply text-[9px] font-extrabold uppercase tracking-[0.15em]; color: var(--tn-text-secondary); }
   .kanban-lane { transition: background-color 160ms cubic-bezier(0.23, 1, 0.32, 1); }
   .kanban-lane:has(.task-card:active) { background-color: #e9f4f9; }
 
