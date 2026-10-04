@@ -1,6 +1,18 @@
 {
+  "framework": null,
   "buildCommand": "pnpm --filter @tasknest/web build",
   "outputDirectory": "apps/web/dist",
+  "installCommand": "pnpm install",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/images/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+    }
+  ]
 }
